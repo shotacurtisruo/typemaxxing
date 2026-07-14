@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, type RefObject } from "react"
 import { useFrame } from "@react-three/fiber"
 import { RoundedBox, Text } from "@react-three/drei"
 import type { Group } from "three"
@@ -8,31 +8,67 @@ import ObjectMesh from "./ObjectMesh"
 export type Variant = "segmented" | "long"
 export { GAP }
 
-/** One letter-piece in a segmented word: glows when it's next, squashes on landing. */
-function LetterPiece({ object, char, index, activeIndex }: { object: ClimbObject; char: string; index: number; activeIndex: number }) {
+type Landing = "press" | "crack" | "pop" | "squish"
+function landingFor(shape: ClimbObject["shape"]): Landing {
+  if (shape === "keycap") return "press"
+  if (shape === "chocolate" || shape === "ice") return "crack"
+  if (shape === "bubble") return "pop"
+  return "squish"
+}
+
+/** A few thin lines that flash on when a hard object cracks. */
+function CrackLines({ groupRef, color, y }: { groupRef: RefObject<Group | null>; color: string; y: number }) {
+  const lines: [number, number][] = [[0.2, 0.02], [-0.4, 0.55], [1.9, -0.5]]
+  return (
+    <group ref={groupRef} visible={false} position={[0, y, 0]}>
+      {lines.map(([rot, z], i) => (
+        <mesh key={i} rotation={[0, rot, 0]} position={[0, 0, z * 0.3]}>
+          <boxGeometry args={[0.62, 0.03, 0.04]} />
+          <meshBasicMaterial color={color} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+/** One letter-piece in a segmented word: glows under the blob + reacts on landing. */
+function LetterPiece({ object, char, index, blobSlot, typedCount }: { object: ClimbObject; char: string; index: number; blobSlot: number; typedCount: number }) {
   const g = useRef<Group>(null)
+  const crack = useRef<Group>(null)
   const impact = useRef(0)
-  const wasTyped = useRef(false)
-  const typed = index < activeIndex
-  const isNext = index === activeIndex
-  const glow = isNext ? 0.4 : typed ? 0.06 : 0
+  const wasBlob = useRef(false)
+  const typed = index < typedCount
+  const hasBlob = index === blobSlot
+  const glow = hasBlob ? 0.5 : typed ? 0.06 : 0
+  const style = landingFor(object.shape)
 
   useEffect(() => {
-    if (typed && !wasTyped.current) impact.current = 1
-    wasTyped.current = typed
-  }, [typed])
+    if (hasBlob && !wasBlob.current) impact.current = 1 // blob just landed here
+    wasBlob.current = hasBlob
+  }, [hasBlob])
 
   useFrame((_, dt) => {
-    if (!g.current) return
-    impact.current = Math.max(0, impact.current - dt * 4)
-    const sq = impact.current
-    g.current.scale.set(1 + sq * 0.16, 1 - sq * 0.28, 1 + sq * 0.16)
-    g.current.position.y = isNext ? Math.sin(performance.now() / 300) * 0.03 : 0
+    const el = g.current
+    if (!el) return
+    impact.current = Math.max(0, impact.current - dt * 4.5)
+    const k = impact.current
+    let sx = 1, sy = 1, sz = 1, y = 0
+    if (style === "press") y = -0.18 * k
+    else if (style === "pop") { const e = 1 + Math.sin(k * Math.PI) * 0.3; sx = sy = sz = e }
+    else if (style === "crack") { sy = 1 - k * 0.14; sx = 1 + k * 0.09; sz = 1 + k * 0.09 }
+    else { sx = 1 + k * 0.18; sy = 1 - k * 0.32; sz = 1 + k * 0.18 }
+    if (hasBlob && style !== "press") y += Math.sin(performance.now() / 300) * 0.03
+    el.scale.set(sx, sy, sz)
+    el.position.y = y
+    if (crack.current) crack.current.visible = k > 0.12
   })
 
   return (
     <group ref={g}>
       <ObjectMesh object={object} char={char} glow={glow} />
+      {style === "crack" && (
+        <CrackLines groupRef={crack} color={object.shape === "ice" ? "#eaffff" : "#1c0f07"} y={object.halfHeight + 0.02} />
+      )}
     </group>
   )
 }
@@ -144,11 +180,12 @@ interface Props {
   object: ClimbObject
   word: string
   variant: Variant
-  activeIndex?: number // letter the blob is on (game only); -1 = inactive word
+  blobSlot?: number // letter the blob is on (current word only); -1 otherwise
+  typedCount?: number // letters already typed in this word
 }
 
 /** A whole word rendered as a single climb object. */
-export default function WordObject({ object, word, variant, activeIndex = -1 }: Props) {
+export default function WordObject({ object, word, variant, blobSlot = -1, typedCount = 0 }: Props) {
   const chars = word.split("")
   const n = chars.length
   const slot = (i: number) => (i - (n - 1) / 2) * GAP
@@ -165,7 +202,7 @@ export default function WordObject({ object, word, variant, activeIndex = -1 }: 
         )}
         {chars.map((ch, i) => (
           <group key={i} position={[slot(i), 0, 0]}>
-            <LetterPiece object={object} char={ch} index={i} activeIndex={activeIndex} />
+            <LetterPiece object={object} char={ch} index={i} blobSlot={blobSlot} typedCount={typedCount} />
           </group>
         ))}
       </group>

@@ -21,7 +21,7 @@ function ClimbCamera() {
 
     // frame the word's center (stable while the blob runs across); nudge toward the blob
     const [cx, cy, cz] = wordCenter(W)
-    const [bx, , bz] = slotWorldPos(W, ci, len)
+    const [bx, , bz] = slotWorldPos(W, Math.min(ci, len - 1), len)
     const fx = cx * 0.7 + bx * 0.3
     const fz = cz * 0.7 + bz * 0.3
     const top = cy + objectFor(W).halfHeight

@@ -14,11 +14,11 @@ export default function Tower() {
       {words.map((word, wi) => {
         const W = baseWord + wi
         const [x, y, z] = wordCenter(W)
-        // progress coloring: past words fully lit, current word up to the caret, future words dark
-        const activeIndex = wi < curWi ? word.length : wi === curWi ? ci : -1
+        const typedCount = wi < curWi ? word.length : wi === curWi ? ci : 0
+        const blobSlot = wi === curWi ? Math.min(ci, word.length - 1) : -1
         return (
           <group key={W} position={[x, y, z]} rotation={[0, wordRotationY(W), 0]}>
-            <WordObject object={objectFor(W)} word={word} variant="segmented" activeIndex={activeIndex} />
+            <WordObject object={objectFor(W)} word={word} variant="segmented" blobSlot={blobSlot} typedCount={typedCount} />
           </group>
         )
       })}
