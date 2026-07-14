@@ -2,12 +2,11 @@ import { useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import { Vector3, type Mesh } from "three"
 import { useGame } from "../game/store"
-import { positionFor } from "../game/config"
+import { objectFor, slotWorldPos } from "../game/config"
 
-const CAP_TOP = 0.25
 const BLOB_R = 0.42
 
-/** The customizable gel blob. Lerps onto the last-climbed keycap with squash-stretch. */
+/** The gel blob. Runs across the current word's letters, leaps on a jump. */
 export default function Blob() {
   const mesh = useRef<Mesh>(null)
   const target = useRef(new Vector3())
@@ -15,16 +14,16 @@ export default function Blob() {
 
   useFrame((_, dt) => {
     if (!mesh.current) return
-    const { baseOffset, typed } = useGame.getState()
-    const landed = baseOffset + typed - 1 // -1 before first keystroke -> base
-
-    const [tx, ty, tz] = positionFor(landed)
-    target.current.set(tx, ty + CAP_TOP + BLOB_R, tz)
+    const { baseWord, wi, ci, words } = useGame.getState()
+    const W = baseWord + wi
+    const len = words[wi]?.length ?? 1
+    const [tx, ty, tz] = slotWorldPos(W, ci, len)
+    const top = objectFor(W).halfHeight + BLOB_R
+    target.current.set(tx, ty + top, tz)
 
     prev.current.copy(mesh.current.position)
     mesh.current.position.lerp(target.current, Math.min(1, dt * 9))
 
-    // squash-stretch from travel speed
     const speed = mesh.current.position.distanceTo(prev.current) / Math.max(dt, 1e-3)
     const s = Math.min(0.35, speed * 0.05)
     mesh.current.scale.set(1 - s * 0.6, 1 + s, 1 - s * 0.6)

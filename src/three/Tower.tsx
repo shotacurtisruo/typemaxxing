@@ -1,27 +1,25 @@
 import { useGame } from "../game/store"
-import { materialFor } from "../game/config"
-import Keycap from "./Keycap"
+import { objectFor, wordCenter, wordRotationY } from "../game/config"
+import WordObject from "./WordObject"
 
-/** Renders the current passage's keycaps along the spiral (endless via baseOffset). */
+/** Each word of the current passage becomes one object on the word-spiral. */
 export default function Tower() {
-  const passage = useGame((s) => s.passage)
-  const typed = useGame((s) => s.typed)
-  const baseOffset = useGame((s) => s.baseOffset)
-  const landedIndex = baseOffset + typed - 1
+  const words = useGame((s) => s.words)
+  const baseWord = useGame((s) => s.baseWord)
+  const curWi = useGame((s) => s.wi)
+  const ci = useGame((s) => s.ci)
 
   return (
     <group>
-      {passage.split("").map((char, i) => {
-        const worldIndex = baseOffset + i
+      {words.map((word, wi) => {
+        const W = baseWord + wi
+        const [x, y, z] = wordCenter(W)
+        // progress coloring: past words fully lit, current word up to the caret, future words dark
+        const activeIndex = wi < curWi ? word.length : wi === curWi ? ci : -1
         return (
-          <Keycap
-            key={worldIndex}
-            worldIndex={worldIndex}
-            char={char}
-            material={materialFor(worldIndex)}
-            isNext={i === typed}
-            landedIndex={landedIndex}
-          />
+          <group key={W} position={[x, y, z]} rotation={[0, wordRotationY(W), 0]}>
+            <WordObject object={objectFor(W)} word={word} variant="segmented" activeIndex={activeIndex} />
+          </group>
         )
       })}
     </group>

@@ -6,6 +6,8 @@ export default function Hud() {
   const [, tick] = useReducer((n) => n + 1, 0)
   const [muted, setMuted] = useState(false)
   const flow = useGame((s) => s.flow)
+  const keycap = useGame((s) => s.keycap)
+  const toggleKeycap = useGame((s) => s.toggleKeycap)
 
   // Refresh time-based stats (WPM) even between keystrokes.
   useEffect(() => {
@@ -45,6 +47,9 @@ export default function Hud() {
         </div>
       </div>
 
+      <button className="cap-toggle" onClick={toggleKeycap} title="Switch keycap + tone">
+        cap: <b>{keycap.toUpperCase()}</b> {keycap === "mt3" ? "· thocky" : "· creamy"}
+      </button>
       <button className="mute" onClick={toggleMute} title="Mute / unmute">
         {muted ? "🔇" : "🔊"}
       </button>
