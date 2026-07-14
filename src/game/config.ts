@@ -68,12 +68,12 @@ export interface ClimbObject {
 export const OBJECTS: ClimbObject[] = [
   { name: "keycap", shape: "keycap", color: "#eceaf5", ink: "#2b2038", roughness: 0.4, transmission: 0, metalness: 0, halfHeight: 0.3, sound: "thock", impact: "click" },
   { name: "jelly", shape: "jelly", color: "#ff77b3", ink: "#5a1338", roughness: 0.06, transmission: 0.62, metalness: 0, halfHeight: 0.46, sound: "squish", impact: "soft" },
-  { name: "chocolate", shape: "chocolate", color: "#4a2915", ink: "#f2d9b8", roughness: 0.28, transmission: 0, metalness: 0.12, halfHeight: 0.22, sound: "snap", impact: "snap" },
-  { name: "butter", shape: "butter", color: "#f5d15e", ink: "#7a5a12", roughness: 0.6, transmission: 0.05, metalness: 0, halfHeight: 0.25, sound: "butter", impact: "soft" },
-  { name: "marshmallow", shape: "marshmallow", color: "#fff0f5", ink: "#c07d95", roughness: 1, transmission: 0, metalness: 0, halfHeight: 0.44, sound: "marsh", impact: "soft" },
-  { name: "bubble", shape: "bubble", color: "#c3e2ff", ink: "#1c4a78", roughness: 0, transmission: 0.92, metalness: 0, halfHeight: 0.46, sound: "pop", impact: "soft" },
-  { name: "ice", shape: "ice", color: "#cfeeff", ink: "#2f6f9e", roughness: 0.02, transmission: 0.85, metalness: 0, halfHeight: 0.42, sound: "ice", impact: "snap" },
-  { name: "honey", shape: "honey", color: "#eaa11c", ink: "#6b3900", roughness: 0.08, transmission: 0.45, metalness: 0, halfHeight: 0.28, sound: "honey", impact: "soft" },
+  { name: "chocolate", shape: "chocolate", color: "#6b3d1c", ink: "#f2d9b8", roughness: 0.24, transmission: 0, metalness: 0.1, halfHeight: 0.22, sound: "snap", impact: "snap" },
+  { name: "butter", shape: "butter", color: "#f7dc79", ink: "#7a5a12", roughness: 0.55, transmission: 0.05, metalness: 0, halfHeight: 0.25, sound: "butter", impact: "soft" },
+  { name: "marshmallow", shape: "marshmallow", color: "#fff4ec", ink: "#c07d95", roughness: 1, transmission: 0, metalness: 0, halfHeight: 0.5, sound: "marsh", impact: "soft" },
+  { name: "bubble", shape: "bubble", color: "#ffffff", ink: "#1c4a78", roughness: 0, transmission: 1, metalness: 0, halfHeight: 0.46, sound: "pop", impact: "soft" },
+  { name: "ice", shape: "ice", color: "#dff4ff", ink: "#2f6f9e", roughness: 0.03, transmission: 0.9, metalness: 0, halfHeight: 0.42, sound: "ice", impact: "snap" },
+  { name: "honey", shape: "honey", color: "#ffb52a", ink: "#5a3200", roughness: 0.06, transmission: 0.5, metalness: 0, halfHeight: 0.28, sound: "honey", impact: "soft" },
   { name: "slime", shape: "slime", color: "#7ad85f", ink: "#245c19", roughness: 0.05, transmission: 0.55, metalness: 0, halfHeight: 0.4, sound: "slime", impact: "soft" },
 ]
 

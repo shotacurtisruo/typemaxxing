@@ -159,6 +159,13 @@ class AudioEngine {
       tick.start(t)
       tick.stop(t + 0.05)
     }
+
+    // up-stroke release tick ~100 ms after bottom-out — real switches sound twice
+    if (tone === "mt3") {
+      this.noiseBurst(out, t + 0.095, { type: "bandpass", freq: 2100, gain: 0.055, decay: 0.02 })
+    } else {
+      this.noiseBurst(out, t + 0.115, { type: "lowpass", freq: 1100, gain: 0.04, decay: 0.022 })
+    }
     this.setFlow(flow)
   }
 
@@ -206,6 +213,30 @@ class AudioEngine {
   }
 
   // --- internals ---
+
+  /** Schedule a filtered noise burst — the workhorse for wet/soft/brittle textures. */
+  private noiseBurst(
+    out: AudioNode,
+    at: number,
+    opts: { type: BiquadFilterType; freq: number; Q?: number; gain: number; attack?: number; decay: number }
+  ) {
+    const ctx = this.ctx!
+    const src = ctx.createBufferSource()
+    src.buffer = this.noiseBuf
+    src.loop = true
+    const f = ctx.createBiquadFilter()
+    f.type = opts.type
+    f.frequency.value = opts.freq
+    if (opts.Q !== undefined) f.Q.value = opts.Q
+    const g = ctx.createGain()
+    const a = opts.attack ?? 0.002
+    g.gain.setValueAtTime(0.0001, at)
+    g.gain.exponentialRampToValueAtTime(opts.gain, at + a)
+    g.gain.exponentialRampToValueAtTime(0.0001, at + a + opts.decay)
+    src.connect(f).connect(g).connect(out)
+    src.start(at)
+    src.stop(at + a + opts.decay + 0.03)
+  }
 
   /** The footstep/switch layer under each landing — character varies per object. */
   private playImpact(impact: Impact, freq: number, pan: number) {
@@ -283,6 +314,10 @@ class AudioEngine {
     osc.stop(t + 0.14)
   }
 
+  /**
+   * Material sounds, grounded in each material's physics:
+   * soft/wet things are NOISE sounds, hard things are TONE sounds.
+   */
   private playMaterial(sound: MaterialSound, freq: number, pan: number) {
     const ctx = this.ctx!
     const t = ctx.currentTime
@@ -290,105 +325,106 @@ class AudioEngine {
 
     if (sound === "foam") {
       // soft filtered-noise crunch, mostly unpitched
-      const src = ctx.createBufferSource()
-      src.buffer = this.noiseBuf
-      const bp = ctx.createBiquadFilter()
-      bp.type = "bandpass"
-      bp.frequency.value = freq * 3
-      bp.Q.value = 1.5
-      const g = ctx.createGain()
-      g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(0.16, t + 0.008)
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12)
-      src.connect(bp).connect(g).connect(out)
-      src.start(t)
-      src.stop(t + 0.14)
+      this.noiseBurst(out, t, { type: "bandpass", freq: freq * 3, Q: 1.5, gain: 0.16, attack: 0.008, decay: 0.11 })
       return
     }
 
     if (sound === "marsh") {
-      // marshmallow: soft airy pillow-puff
+      // marshmallow physics: foam compression pushes air through pores — an unpitched soft "fumf"
+      this.noiseBurst(out, t, { type: "lowpass", freq: 550, gain: 0.16, attack: 0.03, decay: 0.18 })
       const osc = ctx.createOscillator()
       osc.type = "sine"
-      osc.frequency.setValueAtTime(freq * 0.9, t)
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.7, t + 0.16)
-      const lp = ctx.createBiquadFilter()
-      lp.type = "lowpass"
-      lp.frequency.value = 700
+      osc.frequency.value = Math.max(70, freq * 0.4)
       const g = ctx.createGain()
       g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(0.16, t + 0.03)
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26)
-      osc.connect(lp).connect(g).connect(out)
-      osc.start(t)
-      osc.stop(t + 0.28)
-      return
-    }
-
-    if (sound === "ice") {
-      // ice: crisp glassy tinkle — high ping + short bright noise
-      const osc = ctx.createOscillator()
-      osc.type = "triangle"
-      osc.frequency.setValueAtTime(freq * 4, t)
-      const g = ctx.createGain()
-      g.gain.setValueAtTime(0.18, t)
+      g.gain.exponentialRampToValueAtTime(0.07, t + 0.03)
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18)
       osc.connect(g).connect(out)
       osc.start(t)
       osc.stop(t + 0.2)
+      return
+    }
 
-      const src = ctx.createBufferSource()
-      src.buffer = this.noiseBuf
-      const hp = ctx.createBiquadFilter()
-      hp.type = "highpass"
-      hp.frequency.value = 6000
-      const ng = ctx.createGain()
-      ng.gain.setValueAtTime(0.1, t)
-      ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.04)
-      src.connect(hp).connect(ng).connect(out)
-      src.start(t)
-      src.stop(t + 0.05)
+    if (sound === "ice") {
+      // ice physics: stiff crystal rings at INHARMONIC partials (glass clink) + crack onset
+      this.noiseBurst(out, t, { type: "highpass", freq: 5000, gain: 0.15, decay: 0.012 })
+      const base = freq * 2
+      const partials: [number, number, number][] = [
+        [1, 0.15, 0.16], // [ratio, gain, decay]
+        [2.7, 0.08, 0.11],
+        [4.3, 0.05, 0.08],
+      ]
+      for (const [ratio, gain, decay] of partials) {
+        const osc = ctx.createOscillator()
+        osc.type = "sine"
+        osc.frequency.value = base * ratio
+        const g = ctx.createGain()
+        g.gain.setValueAtTime(gain, t)
+        g.gain.exponentialRampToValueAtTime(0.0001, t + decay)
+        osc.connect(g).connect(out)
+        osc.start(t)
+        osc.stop(t + decay + 0.02)
+      }
       return
     }
 
     if (sound === "honey") {
-      // honey: thick, slow, resonant gloop
-      const osc = ctx.createOscillator()
-      osc.type = "sine"
-      osc.frequency.setValueAtTime(freq * 0.5, t)
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.9, t + 0.28)
-      const lp = ctx.createBiquadFilter()
-      lp.type = "lowpass"
-      lp.frequency.value = 600
-      lp.Q.value = 6
-      const g = ctx.createGain()
-      g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(0.22, t + 0.03)
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34)
-      osc.connect(lp).connect(g).connect(out)
-      osc.start(t)
-      osc.stop(t + 0.36)
+      // honey physics: big slow bubbles in viscous fluid (Minnaert) — staggered low gloops, everything slow
+      const gloop = (at: number, f0: number, f1: number, gain: number, dur: number) => {
+        const osc = ctx.createOscillator()
+        osc.type = "sine"
+        osc.frequency.setValueAtTime(f0, at)
+        osc.frequency.exponentialRampToValueAtTime(f1, at + dur * 0.8)
+        const lp = ctx.createBiquadFilter()
+        lp.type = "lowpass"
+        lp.Q.value = 8
+        lp.frequency.setValueAtTime(350, at)
+        lp.frequency.exponentialRampToValueAtTime(750, at + dur * 0.8)
+        const g = ctx.createGain()
+        g.gain.setValueAtTime(0.0001, at)
+        g.gain.exponentialRampToValueAtTime(gain, at + 0.05)
+        g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
+        osc.connect(lp).connect(g).connect(out)
+        osc.start(at)
+        osc.stop(at + dur + 0.02)
+      }
+      gloop(t, freq * 0.5, freq * 0.85, 0.2, 0.4)
+      gloop(t + 0.13, freq * 0.65, freq * 1.0, 0.12, 0.28)
+      // sticky micro-crackle as the surface pulls
+      for (const dt of [0.06, 0.16, 0.27]) {
+        this.noiseBurst(out, t + dt, { type: "lowpass", freq: 1300, gain: 0.03, decay: 0.01 })
+      }
       return
     }
 
     if (sound === "slime") {
-      // slime: stretchy wet gloop with a wobble
+      // crunchy-slime ASMR signature: dense micro-bubble crackle over a stretchy wobble
+      const offs = [0.004, 0.018, 0.034, 0.052, 0.075, 0.1, 0.13, 0.165, 0.205]
+      offs.forEach((dt, i) => {
+        this.noiseBurst(out, t + dt, {
+          type: "bandpass",
+          freq: 1100 + (i % 4) * 380,
+          Q: 2.5,
+          gain: 0.1 * (1 - i / 11),
+          decay: 0.008,
+        })
+      })
       const osc = ctx.createOscillator()
       osc.type = "sawtooth"
-      osc.frequency.setValueAtTime(freq * 1.4, t)
+      osc.frequency.setValueAtTime(freq * 1.3, t)
       osc.frequency.exponentialRampToValueAtTime(freq * 0.7, t + 0.2)
       const lfo = ctx.createOscillator()
-      lfo.frequency.value = 18
+      lfo.frequency.value = 16
       const lfoGain = ctx.createGain()
-      lfoGain.gain.value = freq * 0.12
+      lfoGain.gain.value = freq * 0.1
       lfo.connect(lfoGain).connect(osc.frequency)
       const lp = ctx.createBiquadFilter()
       lp.type = "lowpass"
-      lp.frequency.setValueAtTime(1800, t)
-      lp.frequency.exponentialRampToValueAtTime(500, t + 0.2)
+      lp.frequency.setValueAtTime(1200, t)
+      lp.frequency.exponentialRampToValueAtTime(450, t + 0.2)
       const g = ctx.createGain()
       g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(0.2, t + 0.015)
+      g.gain.exponentialRampToValueAtTime(0.12, t + 0.015)
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24)
       osc.connect(lp).connect(g).connect(out)
       osc.start(t)
@@ -399,87 +435,132 @@ class AudioEngine {
     }
 
     if (sound === "snap") {
-      // chocolate crack: bright noise burst + fast descending "crack"
-      const src = ctx.createBufferSource()
-      src.buffer = this.noiseBuf
-      const hp = ctx.createBiquadFilter()
-      hp.type = "highpass"
-      hp.frequency.value = 2500
-      const ng = ctx.createGain()
-      ng.gain.setValueAtTime(0.24, t)
-      ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05)
-      src.connect(hp).connect(ng).connect(out)
-      src.start(t)
-      src.stop(t + 0.06)
-
-      const osc = ctx.createOscillator()
-      osc.type = "triangle"
-      osc.frequency.setValueAtTime(freq * 3, t)
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.9, t + 0.06)
+      // chocolate physics: brittle fracture PROPAGATES — a dry double micro-crack + tiny mass knock
+      const dry = this.pan(pan, false) // bone dry, no reverb
+      this.noiseBurst(dry, t, { type: "highpass", freq: 1800, gain: 0.27, decay: 0.018 })
+      this.noiseBurst(dry, t + 0.015, { type: "highpass", freq: 2400, gain: 0.17, decay: 0.014 })
+      const knock = ctx.createOscillator()
+      knock.type = "sine"
+      knock.frequency.value = Math.max(180, freq * 0.7)
       const g = ctx.createGain()
-      g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(0.22, t + 0.004)
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09)
-      osc.connect(g).connect(out)
-      osc.start(t)
-      osc.stop(t + 0.1)
+      g.gain.setValueAtTime(0.13, t)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045)
+      knock.connect(g).connect(dry)
+      knock.start(t)
+      knock.stop(t + 0.06)
       return
     }
 
     if (sound === "butter") {
-      // soft, low, muffled wet squish
-      const osc = ctx.createOscillator()
-      osc.type = "sine"
-      osc.frequency.setValueAtTime(freq * 0.75, t)
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.55, t + 0.22)
+      // butter physics: spreading friction — creamy low-passed noise smear, then faint sticky ticks
+      const src = ctx.createBufferSource()
+      src.buffer = this.noiseBuf
+      src.loop = true
       const lp = ctx.createBiquadFilter()
       lp.type = "lowpass"
-      lp.frequency.setValueAtTime(900, t)
-      lp.frequency.exponentialRampToValueAtTime(360, t + 0.24)
+      lp.frequency.setValueAtTime(500, t)
+      lp.frequency.exponentialRampToValueAtTime(180, t + 0.26)
       const g = ctx.createGain()
       g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(0.2, t + 0.015)
+      g.gain.exponentialRampToValueAtTime(0.18, t + 0.03)
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3)
-      osc.connect(lp).connect(g).connect(out)
+      src.connect(lp).connect(g).connect(out)
+      src.start(t)
+      src.stop(t + 0.33)
+      // low body under the smear
+      const osc = ctx.createOscillator()
+      osc.type = "sine"
+      osc.frequency.value = Math.max(80, freq * 0.5)
+      const bg = ctx.createGain()
+      bg.gain.setValueAtTime(0.0001, t)
+      bg.gain.exponentialRampToValueAtTime(0.06, t + 0.03)
+      bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.2)
+      osc.connect(bg).connect(out)
       osc.start(t)
-      osc.stop(t + 0.32)
+      osc.stop(t + 0.22)
+      // sticky release ticks
+      this.noiseBurst(out, t + 0.17, { type: "highpass", freq: 2600, gain: 0.032, decay: 0.01 })
+      this.noiseBurst(out, t + 0.23, { type: "highpass", freq: 3200, gain: 0.026, decay: 0.008 })
       return
     }
 
     if (sound === "pop") {
-      // tiny bubble pop: quick downward pitch blip
-      const osc = ctx.createOscillator()
-      osc.type = "sine"
-      osc.frequency.setValueAtTime(freq * 2.4, t)
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.1, t + 0.05)
+      // bubble physics: film rupture — a tiny broadband "pik", almost no low end
+      this.noiseBurst(out, t, { type: "highpass", freq: 2500, gain: 0.2, decay: 0.01 })
+      const ping = ctx.createOscillator()
+      ping.type = "sine"
+      ping.frequency.value = freq * 2.5
       const g = ctx.createGain()
-      g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(0.3, t + 0.004)
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08)
-      osc.connect(g).connect(out)
-      osc.start(t)
-      osc.stop(t + 0.1)
+      g.gain.setValueAtTime(0.11, t)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05)
+      ping.connect(g).connect(out)
+      ping.start(t)
+      ping.stop(t + 0.07)
+      // whisper of a sweep for game readability
+      const sw = ctx.createOscillator()
+      sw.type = "sine"
+      sw.frequency.setValueAtTime(freq * 2.2, t)
+      sw.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 0.03)
+      const sg = ctx.createGain()
+      sg.gain.setValueAtTime(0.04, t)
+      sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.035)
+      sw.connect(sg).connect(out)
+      sw.start(t)
+      sw.stop(t + 0.05)
       return
     }
 
-    // "squish" (jelly) and "gel": pitched wobble through a moving lowpass
+    if (sound === "squish") {
+      // jelly physics: wet surface smack + low "blub" + you can HEAR the wobble (12 Hz tremolo tail)
+      this.noiseBurst(out, t, { type: "bandpass", freq: 900, Q: 1, gain: 0.2, decay: 0.028 })
+      const blub = ctx.createOscillator()
+      blub.type = "sine"
+      blub.frequency.setValueAtTime(freq * 0.9, t)
+      blub.frequency.exponentialRampToValueAtTime(freq * 0.55, t + 0.12)
+      const bg = ctx.createGain()
+      bg.gain.setValueAtTime(0.0001, t)
+      bg.gain.exponentialRampToValueAtTime(0.22, t + 0.008)
+      bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.14)
+      blub.connect(bg).connect(out)
+      blub.start(t)
+      blub.stop(t + 0.16)
+      // wobble tail: carrier amplitude-modulated at ~12 Hz — the audible jiggle
+      const carrier = ctx.createOscillator()
+      carrier.type = "sine"
+      carrier.frequency.value = freq * 0.75
+      const cg = ctx.createGain()
+      cg.gain.setValueAtTime(0.0001, t)
+      cg.gain.exponentialRampToValueAtTime(0.09, t + 0.03)
+      cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.38)
+      const trem = ctx.createOscillator()
+      trem.frequency.value = 12
+      const tremG = ctx.createGain()
+      tremG.gain.value = 0.05
+      trem.connect(tremG).connect(cg.gain)
+      carrier.connect(cg).connect(out)
+      carrier.start(t)
+      trem.start(t)
+      carrier.stop(t + 0.4)
+      trem.stop(t + 0.4)
+      return
+    }
+
+    // "gel": smooth pitched slurp through an opening lowpass
     const osc = ctx.createOscillator()
-    osc.type = sound === "gel" ? "sine" : "triangle"
-    const up = sound === "gel"
-    osc.frequency.setValueAtTime(freq * (up ? 0.8 : 1.25), t)
-    osc.frequency.exponentialRampToValueAtTime(freq * (up ? 1.15 : 0.85), t + 0.14)
+    osc.type = "sine"
+    osc.frequency.setValueAtTime(freq * 0.8, t)
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.15, t + 0.14)
     const lp = ctx.createBiquadFilter()
     lp.type = "lowpass"
-    lp.frequency.setValueAtTime(up ? 500 : 1600, t)
-    lp.frequency.exponentialRampToValueAtTime(up ? 2400 : 700, t + 0.16)
+    lp.frequency.setValueAtTime(500, t)
+    lp.frequency.exponentialRampToValueAtTime(2400, t + 0.16)
     const g = ctx.createGain()
-    const dur = sound === "gel" ? 0.24 : 0.2
     g.gain.setValueAtTime(0.0001, t)
     g.gain.exponentialRampToValueAtTime(0.26, t + 0.01)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24)
     osc.connect(lp).connect(g).connect(out)
     osc.start(t)
-    osc.stop(t + dur + 0.02)
+    osc.stop(t + 0.26)
   }
 
   /** Returns an input node routed to a fresh HRTF panner -> dry + reverb. */
