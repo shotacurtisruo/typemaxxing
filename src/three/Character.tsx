@@ -1,168 +1,189 @@
 import { useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
-import { CatmullRomCurve3, MathUtils, Vector3, type Group } from "three"
-import { useGame } from "../game/store"
+import { CanvasTexture, DoubleSide, MathUtils, NearestFilter, Vector3, type Group, type Mesh, type MeshBasicMaterial } from "three"
+import { useGame, wpm, type CharacterLook } from "../game/store"
 import { objectFor, slotWorldPos, panForWord } from "../game/config"
 import { audio } from "../audio/AudioEngine"
 import { charWorldPos, shake } from "./sceneBus"
 
 const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
 
-const PINK = "#ff9ec2"
-const CREAM = "#fff6ee"
-const INK = "#1c1c28"
+// ---------- pixel-art cat (side profile, facing right) ----------
 
-/**
- * A chibi kitten built from primitives — glossy candy style, ~1.1 units tall,
- * facing +Z. Fur + scarf colors are customizable; the tail sways on its own
- * and swings harder while moving. Shared by the game and the customizer.
- */
-export function KittenModel({ fur, accent, spin = false }: { fur: string; accent: string; spin?: boolean }) {
-  const g = useRef<Group>(null)
-  const tail = useRef<Group>(null)
-  const prevPos = useRef(new Vector3())
-  const swing = useRef(0)
+const GW = 32 // grid width
+const GH = 22 // grid height
+const PX = 8 // canvas pixels per grid cell
 
-  const tailCurve = useMemo(
-    () =>
-      new CatmullRomCurve3([
-        new Vector3(0, 0.22, -0.26),
-        new Vector3(0.06, 0.14, -0.48),
-        new Vector3(0.17, 0.34, -0.6),
-        new Vector3(0.13, 0.6, -0.54),
-        new Vector3(0.02, 0.72, -0.4),
-      ]),
-    []
-  )
+export type CatPose =
+  | "idle0" | "idle1"
+  | "walk0" | "walk1" | "walk2" | "walk3"
+  | "run0" | "run1" | "run2" | "run3"
+  | "air"
 
-  useFrame(({ clock }, dt) => {
-    if (spin && g.current) g.current.rotation.y += dt * 0.9
-    // tail: idle sway + extra swing while the character is moving
-    const speed = charWorldPos.distanceTo(prevPos.current) / Math.max(dt, 1e-3)
-    prevPos.current.copy(charWorldPos)
-    swing.current = MathUtils.damp(swing.current, Math.min(0.5, speed * 0.06), 5, dt)
-    if (tail.current) {
-      const t = clock.elapsedTime
-      tail.current.rotation.y = Math.sin(t * 1.9) * (0.16 + swing.current)
-      tail.current.rotation.x = Math.sin(t * 1.3 + 1) * 0.06 + swing.current * 0.3
-    }
-  })
-
-  const furMat = <meshPhysicalMaterial color={fur} roughness={0.45} clearcoat={0.6} clearcoatRoughness={0.35} />
-
-  return (
-    <group ref={g}>
-      {/* body (sitting) */}
-      <mesh position={[0, 0.34, 0]} scale={[1, 0.95, 0.9]}>
-        <sphereGeometry args={[0.34, 28, 22]} />
-        {furMat}
-      </mesh>
-      {/* belly patch */}
-      <mesh position={[0, 0.32, 0.17]} scale={[1, 1.15, 0.55]}>
-        <sphereGeometry args={[0.2, 20, 16]} />
-        <meshPhysicalMaterial color={CREAM} roughness={0.5} clearcoat={0.4} />
-      </mesh>
-      {/* front paws */}
-      <mesh position={[-0.13, 0.09, 0.22]}>
-        <sphereGeometry args={[0.09, 16, 12]} />
-        {furMat}
-      </mesh>
-      <mesh position={[0.13, 0.09, 0.22]}>
-        <sphereGeometry args={[0.09, 16, 12]} />
-        {furMat}
-      </mesh>
-
-      {/* scarf */}
-      <mesh position={[0, 0.6, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.185, 0.055, 10, 24]} />
-        <meshStandardMaterial color={accent} roughness={0.6} />
-      </mesh>
-
-      {/* head */}
-      <mesh position={[0, 0.82, 0.02]}>
-        <sphereGeometry args={[0.32, 28, 22]} />
-        {furMat}
-      </mesh>
-      {/* ears (outer + inner) */}
-      {[-1, 1].map((s) => (
-        <group key={s} position={[s * 0.18, 1.08, 0]} rotation={[0, 0, s * -0.3]}>
-          <mesh>
-            <coneGeometry args={[0.1, 0.2, 4]} />
-            {furMat}
-          </mesh>
-          <mesh position={[0, -0.01, 0.035]} scale={[0.55, 0.6, 0.55]}>
-            <coneGeometry args={[0.1, 0.2, 4]} />
-            <meshStandardMaterial color={PINK} roughness={0.6} />
-          </mesh>
-        </group>
-      ))}
-      {/* muzzle */}
-      <mesh position={[0, 0.73, 0.26]} scale={[1.15, 0.75, 0.7]}>
-        <sphereGeometry args={[0.13, 20, 16]} />
-        <meshPhysicalMaterial color={CREAM} roughness={0.5} clearcoat={0.4} />
-      </mesh>
-      {/* nose */}
-      <mesh position={[0, 0.77, 0.36]} rotation={[Math.PI, 0, 0]}>
-        <coneGeometry args={[0.03, 0.035, 3]} />
-        <meshStandardMaterial color={PINK} roughness={0.4} />
-      </mesh>
-      {/* eyes (kawaii: big dark + glint) */}
-      {[-1, 1].map((s) => (
-        <group key={s} position={[s * 0.13, 0.86, 0.27]}>
-          <mesh scale={[1, 1.35, 0.55]}>
-            <sphereGeometry args={[0.05, 16, 12]} />
-            <meshStandardMaterial color={INK} roughness={0.25} />
-          </mesh>
-          <mesh position={[0.015, 0.025, 0.03]}>
-            <sphereGeometry args={[0.017, 8, 8]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-        </group>
-      ))}
-      {/* blush */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * 0.21, 0.73, 0.23]} scale={[1, 0.7, 0.5]}>
-          <sphereGeometry args={[0.05, 12, 10]} />
-          <meshBasicMaterial color={PINK} transparent opacity={0.55} />
-        </mesh>
-      ))}
-      {/* whiskers */}
-      {[-1, 1].map((s) =>
-        [-0.05, 0, 0.05].map((tilt, i) => (
-          <mesh
-            key={`${s}-${i}`}
-            position={[s * 0.24, 0.74 + tilt, 0.27]}
-            rotation={[0, s * -0.25, s * (tilt * 3 + 0.06)]}
-          >
-            <boxGeometry args={[0.16, 0.006, 0.006]} />
-            <meshBasicMaterial color="#f5f2ff" />
-          </mesh>
-        ))
-      )}
-
-      {/* tail — curls up behind, sways springy */}
-      <group ref={tail} position={[0, 0, 0]}>
-        <mesh>
-          <tubeGeometry args={[tailCurve, 24, 0.055, 10, false]} />
-          {furMat}
-        </mesh>
-        <mesh position={[0.02, 0.72, -0.4]}>
-          <sphereGeometry args={[0.075, 14, 12]} />
-          <meshPhysicalMaterial color={CREAM} roughness={0.5} clearcoat={0.4} />
-        </mesh>
-      </group>
-    </group>
-  )
+function shade(hex: string, f: number): string {
+  const v = parseInt(hex.slice(1), 16)
+  const r = Math.min(255, Math.round(((v >> 16) & 255) * f))
+  const g = Math.min(255, Math.round(((v >> 8) & 255) * f))
+  const b = Math.min(255, Math.round((v & 255) * f))
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`
 }
+
+/** Draw one frame of the cat onto a canvas. */
+export function drawCatFrame(look: CharacterLook, pose: CatPose): HTMLCanvasElement {
+  const c = document.createElement("canvas")
+  c.width = GW * PX
+  c.height = GH * PX
+  const ctx = c.getContext("2d")!
+  ctx.imageSmoothingEnabled = false
+  const px = (color: string, x: number, y: number, w = 1, h = 1) => {
+    ctx.fillStyle = color
+    ctx.fillRect(Math.round(x) * PX, Math.round(y) * PX, Math.round(w) * PX, Math.round(h) * PX)
+  }
+  const fur = look.fur
+  const dark = shade(fur, 0.72)
+  const cream = "#fff3e6"
+  const ink = "#22222e"
+  const pink = "#ff9ec2"
+  const scarf = look.accent
+
+  const idle = pose.startsWith("idle")
+  const run = pose.startsWith("run")
+  const air = pose === "air"
+  const frame = idle || air ? Number(pose === "idle1") : Number(pose.slice(-1))
+
+  if (idle) {
+    // --- sitting cat ---
+    const flick = frame === 1
+    // haunch + body (upright wedge)
+    px(fur, 9, 9, 10, 9) // rump block
+    px(fur, 11, 6, 8, 4) // chest rising
+    px(dark, 9, 16, 10, 2) // shadow base
+    px(cream, 15, 10, 4, 7) // chest patch
+    // head
+    px(fur, 15, 1, 9, 7)
+    px(fur, 15, 0, 2, 2) // ear back
+    px(fur, 22, 0, 2, 2) // ear front
+    px(pink, 16, 0, 1, 1)
+    px(pink, 23, 0, 1, 1)
+    px(ink, 21, 3, 1, 1) // eye
+    px(pink, 24, 4, 1, 1) // nose
+    px(pink, 22, 5, 1, 1) // blush
+    px(cream, 25, 3, 3, 1) // whiskers
+    px(cream, 25, 5, 3, 1)
+    // scarf
+    px(scarf, 15, 8, 8, 2)
+    // front legs (straight down)
+    px(fur, 16, 12, 2, 7)
+    px(cream, 16, 18, 2, 1)
+    // tail wrapped around front, tip flicks
+    px(dark, 6, 17, 10, 2)
+    px(dark, 5, 15 - (flick ? 2 : 0), 2, 3 + (flick ? 2 : 0))
+    px(cream, 5, 13 - (flick ? 2 : 0), 2, 2)
+    return c
+  }
+
+  // --- standing / moving cat ---
+  const stretch = run || air
+  const bob = run ? [0, -2, -1, 0][frame] : [0, -1, 0, -1][frame]
+  const bodyY = 8 + bob
+  const bodyX = stretch ? 5 : 7
+  const bodyW = stretch ? 19 : 15
+  // tail (streams back when running, S-curve when walking)
+  if (stretch) {
+    px(dark, bodyX - 4, bodyY - 1, 5, 2)
+    px(cream, bodyX - 5, bodyY - 2, 2, 2)
+  } else {
+    px(dark, 3, bodyY - 3, 2, 4)
+    px(dark, 4, bodyY, 3, 2)
+    px(cream, 3, bodyY - 5, 2, 2)
+  }
+  // body
+  px(fur, bodyX, bodyY, bodyW, 7)
+  px(cream, bodyX + 3, bodyY + 5, bodyW - 5, 2) // belly
+  // head
+  const headX = stretch ? 22 : 20
+  const headY = bodyY - 5 + (run ? 1 : 0)
+  px(fur, headX, headY, 9, 8)
+  px(fur, headX, headY - 1, 2, 2)
+  px(fur, headX + 7, headY - 1, 2, 2)
+  px(pink, headX + 1, headY - 1, 1, 1)
+  px(pink, headX + 8, headY - 1, 1, 1)
+  px(ink, headX + 6, headY + 3, 1, 1) // eye
+  px(pink, headX + 9, headY + 4, 1, 1) // nose (edge)
+  px(pink, headX + 7, headY + 5, 1, 1) // blush
+  px(cream, headX + 9, headY + 3, 2, 1) // whiskers
+  px(cream, headX + 9, headY + 5, 2, 1)
+  // scarf at neck
+  px(scarf, headX - 2, bodyY, 3, 3)
+
+  // legs: two pairs, trot phases
+  const groundY = 19
+  const hipY = bodyY + 6
+  const legLen = groundY - hipY
+  const backX = bodyX + 2
+  const frontX = bodyX + bodyW - 4
+  let backNear = 0, backFar = 0, frontNear = 0, frontFar = 0
+  let lift = 0
+  if (run) {
+    // gallop: gather -> full stretch (airborne) -> land -> push
+    const phases: [number, number, number, number, number][] = [
+      [1, 2, -1, -2, 1], // gather (tucked)
+      [-3, -4, 3, 4, 2], // full stretch, airborne
+      [-1, 0, 1, 2, 0], // front contact
+      [2, 1, -2, -1, 0], // back push
+    ]
+    ;[backNear, backFar, frontNear, frontFar, lift] = phases[frame]
+  } else if (air) {
+    backNear = -3; backFar = -4; frontNear = 3; frontFar = 4; lift = 2
+  } else {
+    // walk: diagonal pairs swing
+    const sw = [2, 0, -2, 0][frame]
+    backNear = sw; backFar = -sw; frontNear = -sw; frontFar = sw
+  }
+  const drawLeg = (x: number, dx: number, color: string) => {
+    const len = Math.max(2, legLen - lift)
+    px(color, x + dx * 0.99, hipY, 2, len)
+    px(cream, x + dx * 0.99, hipY + len - 1, 2, 1)
+  }
+  drawLeg(backX, backFar, dark)
+  drawLeg(frontX, frontFar, dark)
+  drawLeg(backX, backNear, fur)
+  drawLeg(frontX, frontNear, fur)
+  return c
+}
+
+export function catPreviewURL(look: CharacterLook): string {
+  return drawCatFrame(look, "idle0").toDataURL()
+}
+
+const POSES: CatPose[] = ["idle0", "idle1", "walk0", "walk1", "walk2", "walk3", "run0", "run1", "run2", "run3", "air"]
+
+function makeTextures(look: CharacterLook): Record<CatPose, CanvasTexture> {
+  const out = {} as Record<CatPose, CanvasTexture>
+  for (const p of POSES) {
+    const tex = new CanvasTexture(drawCatFrame(look, p))
+    tex.magFilter = NearestFilter
+    tex.minFilter = NearestFilter
+    out[p] = tex
+  }
+  return out
+}
+
+// ---------- character controller ----------
+
+const SPRITE_W = 2.0
+const SPRITE_H = 2.0 * (GH / GW)
+const RUN_WPM = 45 // at/above this, the legs gallop
 
 type Mode = "move" | "stagger" | "drop" | "recover"
 
-/** The player character: hops the words, staggers + drops + recovers on a slip. */
+/** The pixel cat: walks/runs across word platforms as you type, jumps on space, falls on red pileups. */
 export default function Character() {
   const look = useGame((s) => s.character)
+  const textures = useMemo(() => makeTextures(look), [look.fur, look.accent])
 
-  const root = useRef<Group>(null) // world position
-  const body = useRef<Group>(null) // squash/tilt/tumble
+  const root = useRef<Group>(null)
+  const plane = useRef<Mesh>(null)
   const from = useRef(new Vector3())
   const to = useRef(new Vector3())
   const goal = useRef(new Vector3())
@@ -171,30 +192,35 @@ export default function Character() {
   const t = useRef(1)
   const dur = useRef(0.2)
   const arc = useRef(0)
-  const yaw = useRef(0)
-  const tumble = useRef(0)
+  const jumping = useRef(false)
+  const spin = useRef(0)
+  const anim = useRef(0)
+  const facing = useRef(1)
+  const goalW = useRef(-1)
   const lastSlip = useRef(useGame.getState().slipNonce)
   const inited = useRef(false)
+  const camRight = useRef(new Vector3())
 
-  useFrame(({ camera, clock }, dt) => {
+  useFrame(({ camera }, dt) => {
     const g = root.current
-    const b = body.current
-    if (!g || !b) return
+    const p = plane.current
+    if (!g || !p) return
     const st = useGame.getState()
     const { baseWord, wi, ci, words } = st
     const W = baseWord + wi
     const len = words[wi]?.length ?? 1
-    const slot = Math.min(ci, len - 1)
-    const [gx, gy, gz] = slotWorldPos(W, slot, len)
+    const s = Math.min(ci, len - 0.4) // stand at the caret; hold at the platform edge when done
+    const [gx, gy, gz] = slotWorldPos(W, s, len)
     goal.current.set(gx, gy + objectFor(W).halfHeight, gz)
 
     if (!inited.current) {
       g.position.copy(goal.current)
       to.current.copy(goal.current)
+      goalW.current = W
       inited.current = true
     }
 
-    // --- slip! begin the stagger -> drop -> recover sequence ---
+    // --- fall! (red pileup) stagger -> drop -> recover ---
     if (st.slipNonce !== lastSlip.current) {
       lastSlip.current = st.slipNonce
       mode.current = "stagger"
@@ -202,32 +228,37 @@ export default function Character() {
       dur.current = 0.22
       from.current.copy(g.position)
       to.current.copy(goal.current)
-      // drop lands mostly straight down: only ~35% horizontal drift during the fall
       dropEnd.current.set(
         from.current.x + (to.current.x - from.current.x) * 0.35,
         to.current.y,
         from.current.z + (to.current.z - from.current.z) * 0.35
       )
+      goalW.current = W
     }
 
-    // normal typing continues to move the target; track it while moving
+    // new target while moving normally: walk within a word, jump between words
     if (mode.current === "move" && goal.current.distanceToSquared(to.current) > 0.0004) {
       from.current.copy(g.position)
       to.current.copy(goal.current)
       t.current = 0
+      jumping.current = W !== goalW.current
+      goalW.current = W
       const horiz = Math.hypot(to.current.x - from.current.x, to.current.z - from.current.z)
-      dur.current = MathUtils.clamp(0.13 + horiz * 0.04, 0.13, 0.4)
-      arc.current = Math.min(0.9, horiz * 0.16 + 0.14)
+      if (jumping.current) {
+        dur.current = 0.38
+        arc.current = Math.min(1, 0.45 + horiz * 0.05)
+      } else {
+        dur.current = MathUtils.clamp(horiz / 4.5, 0.1, 0.3) // walking speed
+        arc.current = 0
+      }
     }
 
     t.current = Math.min(1, t.current + dt / dur.current)
     const tt = t.current
-    let airStretch = 0
 
     if (mode.current === "stagger") {
-      // wobble in place — the "!" moment
       g.position.copy(from.current)
-      b.rotation.z = Math.sin(tt * 26) * 0.24 * (1 - tt * 0.5)
+      p.rotation.z = Math.sin(tt * 26) * 0.22 * (1 - tt * 0.5)
       if (tt >= 1) {
         mode.current = "drop"
         t.current = 0
@@ -235,66 +266,81 @@ export default function Character() {
         dur.current = 0.35 + Math.min(0.35, dropH * 0.08)
       }
     } else if (mode.current === "drop") {
-      // gravity-accelerated, nearly-straight-down fall with a slow tumble
       const eY = tt * tt
       g.position.x = MathUtils.lerp(from.current.x, dropEnd.current.x, smoother(tt))
       g.position.z = MathUtils.lerp(from.current.z, dropEnd.current.z, smoother(tt))
       g.position.y = MathUtils.lerp(from.current.y, dropEnd.current.y, eY)
-      tumble.current += dt * 7
-      airStretch = 0.15
+      spin.current += dt * 9
       if (tt >= 1) {
         mode.current = "recover"
         t.current = 0
         dur.current = 0.28
         from.current.copy(g.position)
-        to.current.copy(goal.current) // land on the live target (player may have typed)
+        to.current.copy(goal.current)
         audio.playThud(panForWord(W))
         shake(0.55)
       }
     } else if (mode.current === "recover") {
-      // sheepish little hop from where we crashed onto our key
       const e = smoother(tt)
       g.position.lerpVectors(from.current, to.current, e)
       g.position.y += Math.sin(Math.PI * tt) * 0.4
-      tumble.current = MathUtils.damp(tumble.current % (Math.PI * 2), 0, 10, dt)
-      airStretch = Math.sin(Math.PI * tt) * 0.12
+      spin.current = MathUtils.damp(spin.current % (Math.PI * 2), 0, 10, dt)
       if (tt >= 1) {
         mode.current = "move"
         to.current.copy(goal.current)
+        p.rotation.z = 0
       }
     } else {
-      // normal hop between letters/words
       const e = smoother(tt)
       g.position.lerpVectors(from.current, to.current, e)
-      g.position.y += Math.sin(Math.PI * tt) * arc.current
-      airStretch = Math.sin(Math.PI * tt) * 0.16
-      tumble.current = MathUtils.damp(tumble.current, 0, 10, dt)
-      b.rotation.z = MathUtils.damp(b.rotation.z, 0, 8, dt)
+      if (jumping.current) g.position.y += Math.sin(Math.PI * tt) * arc.current
+      spin.current = MathUtils.damp(spin.current, 0, 10, dt)
+      p.rotation.z = MathUtils.damp(p.rotation.z, 0, 8, dt)
     }
 
-    // facing: travel direction while moving, drift toward camera when idle
-    const dx = to.current.x - from.current.x
-    const dz = to.current.z - from.current.z
-    const moving = tt < 1 && Math.hypot(dx, dz) > 0.05 && mode.current !== "stagger"
-    const targetYaw = moving
-      ? Math.atan2(dx, dz)
-      : Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z)
-    yaw.current = MathUtils.damp(yaw.current, targetYaw, 6, dt)
-    b.rotation.y = yaw.current
-    b.rotation.x = tumble.current
+    // ---- sprite animation ----
+    const falling = mode.current !== "move"
+    const moving = !falling && tt < 1
+    const speed = wpm(st)
+    let pose: CatPose
+    if (falling || (moving && jumping.current)) {
+      pose = "air"
+    } else if (moving) {
+      const running = speed >= RUN_WPM
+      anim.current += dt * (running ? 13 : 8)
+      pose = `${running ? "run" : "walk"}${Math.floor(anim.current) % 4}` as CatPose
+    } else {
+      anim.current += dt * 1.6
+      pose = `idle${Math.floor(anim.current) % 2}` as CatPose
+    }
+    const mat = p.material as MeshBasicMaterial
+    if (mat.map !== textures[pose]) {
+      mat.map = textures[pose]
+      mat.needsUpdate = true
+    }
 
-    // squash & stretch + idle breathe
-    const breathe = mode.current === "move" && tt >= 1 ? Math.sin(clock.elapsedTime * 3) * 0.02 : 0
-    b.scale.set(1 - airStretch * 0.4 + breathe, 1 + airStretch - breathe, 1 - airStretch * 0.4 + breathe)
+    // ---- billboard + facing flip ----
+    p.rotation.y = 0
+    g.rotation.y = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z)
+    if (moving || falling) {
+      camRight.current.set(1, 0, 0).applyQuaternion(camera.quaternion)
+      const vx = to.current.x - from.current.x
+      const vz = to.current.z - from.current.z
+      const d = vx * camRight.current.x + vz * camRight.current.z
+      if (Math.abs(d) > 0.05) facing.current = d >= 0 ? 1 : -1
+    }
+    p.scale.set(SPRITE_W * facing.current, SPRITE_H, 1)
+    if (falling && mode.current === "drop") p.rotation.z = spin.current * facing.current
 
     charWorldPos.copy(g.position)
   })
 
   return (
     <group ref={root}>
-      <group ref={body}>
-        <KittenModel fur={look.fur} accent={look.accent} />
-      </group>
+      <mesh ref={plane} position={[0, SPRITE_H / 2, 0]}>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial map={textures.idle0} transparent alphaTest={0.05} side={DoubleSide} toneMapped={false} />
+      </mesh>
     </group>
   )
 }

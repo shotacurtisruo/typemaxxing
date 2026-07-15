@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber"
 import { RoundedBox, Text } from "@react-three/drei"
 import type { Group, Mesh, Material } from "three"
 import { GAP, type ClimbObject, type Shape } from "../game/config"
+import type { Mark } from "../game/store"
 import ObjectMesh from "./ObjectMesh"
 
 export type Variant = "segmented" | "long"
@@ -285,12 +286,14 @@ interface Props {
   object: ClimbObject
   word: string
   variant: Variant
-  blobSlot?: number // letter the blob is on (current word only); -1 otherwise
-  typedCount?: number // letters already typed in this word
+  blobSlot?: number // (segmented) letter the character is on; -1 otherwise
+  typedCount?: number // (segmented) letters already typed
+  marks?: Mark[] // (long) per-letter typing state for coloring
+  caret?: number // (long) caret slot in this word; -1 if not the current word
 }
 
 /** A whole word rendered as a single climb object. */
-export default function WordObject({ object, word, variant, blobSlot = -1, typedCount = 0 }: Props) {
+export default function WordObject({ object, word, variant, blobSlot = -1, typedCount = 0, marks, caret = -1 }: Props) {
   const chars = word.split("")
   const n = chars.length
   const slot = (i: number) => (i - (n - 1) / 2) * GAP
@@ -320,23 +323,28 @@ export default function WordObject({ object, word, variant, blobSlot = -1, typed
     )
   }
 
-  // long: one piece + letters along the top
+  // long: one continuous platform + letters along the top, colored by typing state
   return (
     <group>
       <LongMesh object={object} n={n} />
-      {chars.map((ch, i) => (
-        <Text
-          key={i}
-          position={[slot(i), topY + 0.03, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={0.42}
-          color={object.ink}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {ch}
-        </Text>
-      ))}
+      {chars.map((ch, i) => {
+        const mark = marks?.[i] ?? 0
+        const isCaret = i === caret
+        const color = mark === 2 ? "#ff4d4d" : mark === 1 ? "#ffffff" : isCaret ? "#5ff0d0" : object.ink
+        return (
+          <Text
+            key={i}
+            position={[slot(i), topY + 0.03, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            fontSize={0.42}
+            color={color}
+            anchorX="center"
+            anchorY="middle"
+          >
+            {ch}
+          </Text>
+        )
+      })}
     </group>
   )
 }

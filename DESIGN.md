@@ -1,17 +1,19 @@
 # 🔊 Thock — Design Brief
 
-**A chill-first 3D ASMR typing-climber.** You type a passage; each correct letter lands your
-little gel blob on that exact glossy keycap of an endless spiral tower, firing a layered,
-pentatonic-tuned, binaural switch-thock + material-squish. Type well = a smooth, oddly-satisfying,
-musical ascent. It's MonkeyType fused with those satisfying Roblox squish-climbers.
+**A chill-first 3D ASMR typing-climber.** MonkeyType rules over a candy world: you type a
+passage MonkeyType-style (wrong keys type through in red; backspace to fix), while a 2D pixel
+cat walks/runs across continuous word-platforms on an endless spiral tower — legs animate by
+your live WPM, space jumps to the next platform, and 3 fresh reds make the cat slip and fall
+(fallen words are retyped). Every correct key fires the layered pentatonic binaural material
+sound of the platform you're on.
 
 ## Locked design decisions
 - **Core vibe:** chill-first; scores optional (no hard fail)
-- **Coupling:** type the exact keycap → blob hops onto it
-- **World:** endless ascending **spiral** tower of keycaps, grouped into material **zones/biomes**
-- **Character:** customizable jiggly **gel blob** (squash-stretch)
+- **Coupling:** caret-synced — the pixel cat walks the current word-platform to your caret; space = jump
+- **World:** endless ascending **spiral** of continuous word-platforms (one word = one platform), material **zones/biomes**
+- **Character:** customizable 2D **pixel cat** (side-profile; idle/walk/run/air frames; fur + scarf colors)
 - **Framing:** endless climb with passage checkpoints
-- **Miss:** soft slip + deliberately un-satisfying dry "dud" (no advance, flow drops)
+- **Miss:** MonkeyType — wrong key types through **red**, backspace deletes; 3 fresh reds = slip & fall back 1-2 words (retype them). `?clumsy` = fall on 1 red (debug)
 
 ### Audio (the soul)
 - Two layers per keystroke: mechanical **switch thock** + **material squish**

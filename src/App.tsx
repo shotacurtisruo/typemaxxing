@@ -56,6 +56,11 @@ export default function App() {
         useGame.getState().reset()
         return
       }
+      if (e.key === "Backspace") {
+        e.preventDefault()
+        useGame.getState().backspace()
+        return
+      }
       // only printable single characters (includes space)
       if (e.key.length !== 1) return
       e.preventDefault()
@@ -69,16 +74,16 @@ export default function App() {
       const res = useGame.getState().press(e.key)
       if (!res) return
       const pan = panForWord(res.worldIndex)
-      if (res.correct) {
+      if (res.slip) {
+        audio.playSlip(pan)
+      } else if (res.kind === "correct" || res.kind === "jump") {
         const pitch = res.worldIndex * 4 + res.slot // rising pentatonic across the climb
         if (res.object.shape === "keycap") {
           audio.playKeycap(useGame.getState().keycap, pitch, pan, res.flow)
         } else {
           audio.playKey(pitch, pan, res.object.sound, res.object.impact, res.flow)
         }
-      } else if (res.slip) {
-        audio.playSlip(pan)
-      } else {
+      } else if (res.kind === "error") {
         audio.playDud(pan)
       }
     }

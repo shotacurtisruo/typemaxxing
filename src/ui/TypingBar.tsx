@@ -1,17 +1,18 @@
 import { useEffect, useRef } from "react"
 import { useGame } from "../game/store"
 
-/** MonkeyType-style passage: typed (bright), caret, untyped (dim); scrolls line-by-line. */
+/** MonkeyType-style passage: correct = bright, wrong = red, caret, untyped = dim. */
 export default function TypingBar() {
-  const passage = useGame((s) => s.passage)
-  const typed = useGame((s) => s.typed)
+  const words = useGame((s) => s.words)
+  const marks = useGame((s) => s.marks)
+  const wi = useGame((s) => s.wi)
+  const ci = useGame((s) => s.ci)
   const inner = useRef<HTMLDivElement>(null)
   const caret = useRef<HTMLSpanElement>(null)
 
-  // Keep the caret line in view. Measured on the next frame so layout is settled
-  // (avoids capturing a mid-reflow value), and clamped so it never scrolls past the end.
+  // Keep the caret line in view (measured after layout settles; clamped to the end).
   useEffect(() => {
-    let raf = requestAnimationFrame(() => {
+    const raf = requestAnimationFrame(() => {
       const c = caret.current
       const el = inner.current
       const box = el?.parentElement
@@ -21,19 +22,33 @@ export default function TypingBar() {
       el.style.transform = `translateY(${-offset}px)`
     })
     return () => cancelAnimationFrame(raf)
-  }, [typed, passage])
+  }, [wi, ci, words])
 
   return (
     <div className="passage">
       <div className="passage-inner" ref={inner}>
-        {passage.split("").map((ch, i) => {
-          const state = i < typed ? "done" : i === typed ? "current" : "todo"
-          return (
-            <span key={i} ref={i === typed ? caret : undefined} className={`ch ${state}`}>
-              {ch === " " ? " " : ch}
+        {words.map((word, w) => (
+          <span key={w} className="word">
+            {word.split("").map((ch, i) => {
+              const mark = marks[w]?.[i] ?? 0
+              const isCaret = w === wi && i === ci
+              const cls =
+                mark === 1 ? "ch done" : mark === 2 ? "ch bad" : isCaret ? "ch current" : "ch todo"
+              return (
+                <span key={i} ref={isCaret ? caret : undefined} className={cls}>
+                  {ch}
+                </span>
+              )
+            })}
+            {/* the space after the word carries the caret when the word is fully typed */}
+            <span
+              ref={w === wi && ci >= word.length ? caret : undefined}
+              className={w === wi && ci >= word.length ? "ch current" : "ch todo"}
+            >
+              {" "}
             </span>
-          )
-        })}
+          </span>
+        ))}
       </div>
     </div>
   )
