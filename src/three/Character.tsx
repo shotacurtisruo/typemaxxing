@@ -39,6 +39,9 @@ export function drawCatFrame(look: CharacterLook, pose: CatPose): HTMLCanvasElem
     ctx.fillStyle = color
     ctx.fillRect(Math.round(x) * PX, Math.round(y) * PX, Math.round(w) * PX, Math.round(h) * PX)
   }
+  const clr = (x: number, y: number, w = 1, h = 1) => {
+    ctx.clearRect(Math.round(x) * PX, Math.round(y) * PX, Math.round(w) * PX, Math.round(h) * PX)
+  }
   const fur = look.fur
   const dark = shade(fur, 0.72)
   const cream = "#fff3e6"
@@ -54,22 +57,28 @@ export function drawCatFrame(look: CharacterLook, pose: CatPose): HTMLCanvasElem
   if (idle) {
     // --- sitting cat ---
     const flick = frame === 1
-    // haunch + body (upright wedge)
+    // haunch + body (upright wedge, rounded rump)
     px(fur, 9, 9, 10, 9) // rump block
+    clr(9, 9)
+    clr(18, 9)
     px(fur, 11, 6, 8, 4) // chest rising
     px(dark, 9, 16, 10, 2) // shadow base
     px(cream, 15, 10, 4, 7) // chest patch
-    // head
+    // head (rounded corners)
     px(fur, 15, 1, 9, 7)
+    clr(15, 1)
+    clr(23, 1)
+    clr(15, 7)
+    clr(23, 7)
     px(fur, 15, 0, 2, 2) // ear back
     px(fur, 22, 0, 2, 2) // ear front
     px(pink, 16, 0, 1, 1)
     px(pink, 23, 0, 1, 1)
-    px(ink, 21, 3, 1, 1) // eye
-    px(pink, 24, 4, 1, 1) // nose
-    px(pink, 22, 5, 1, 1) // blush
-    px(cream, 25, 3, 3, 1) // whiskers
-    px(cream, 25, 5, 3, 1)
+    px(ink, 21, 3, 1, 2) // eye
+    px(pink, 23, 5, 1, 1) // tiny nose
+    px(pink, 20, 6, 1, 1) // blush
+    px(cream, 24, 4, 1, 1) // dainty whiskers
+    px(cream, 24, 6, 1, 1)
     // scarf
     px(scarf, 15, 8, 8, 2)
     // front legs (straight down)
@@ -97,22 +106,28 @@ export function drawCatFrame(look: CharacterLook, pose: CatPose): HTMLCanvasElem
     px(dark, 4, bodyY, 3, 2)
     px(cream, 3, bodyY - 5, 2, 2)
   }
-  // body
+  // body (rounded corners)
   px(fur, bodyX, bodyY, bodyW, 7)
+  clr(bodyX, bodyY)
+  clr(bodyX + bodyW - 1, bodyY)
   px(cream, bodyX + 3, bodyY + 5, bodyW - 5, 2) // belly
-  // head
+  // head (rounded corners)
   const headX = stretch ? 22 : 20
   const headY = bodyY - 5 + (run ? 1 : 0)
   px(fur, headX, headY, 9, 8)
+  clr(headX, headY)
+  clr(headX + 8, headY)
+  clr(headX, headY + 7)
+  clr(headX + 8, headY + 7)
   px(fur, headX, headY - 1, 2, 2)
   px(fur, headX + 7, headY - 1, 2, 2)
   px(pink, headX + 1, headY - 1, 1, 1)
   px(pink, headX + 8, headY - 1, 1, 1)
-  px(ink, headX + 6, headY + 3, 1, 1) // eye
-  px(pink, headX + 9, headY + 4, 1, 1) // nose (edge)
-  px(pink, headX + 7, headY + 5, 1, 1) // blush
-  px(cream, headX + 9, headY + 3, 2, 1) // whiskers
-  px(cream, headX + 9, headY + 5, 2, 1)
+  px(ink, headX + 6, headY + 3, 1, 2) // eye
+  px(pink, headX + 8, headY + 5, 1, 1) // tiny nose
+  px(pink, headX + 5, headY + 6, 1, 1) // blush
+  px(cream, headX + 9, headY + 4, 1, 1) // dainty whiskers
+  px(cream, headX + 9, headY + 6, 1, 1)
   // scarf at neck
   px(scarf, headX - 2, bodyY, 3, 3)
 
