@@ -378,3 +378,8 @@ export function accuracy(s: GameState): number {
 export function heightMeters(s: GameState): number {
   return Math.round((s.baseWord + s.wi) * 1.05)
 }
+
+// dev-only: expose the store so previews can jump to a material zone
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  ;(window as unknown as { useGame: typeof useGame }).useGame = useGame
+}

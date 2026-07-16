@@ -221,7 +221,7 @@ export default function WordObject({ object, word, variant, blobSlot = -1, typed
         const hasCat = i === caret
         return (
           <group key={i} position={[slot(i), 0, 0]}>
-            <ObjectMesh object={object} glow={hasCat ? 0.42 : 0} showLetter={false} />
+            <ObjectMesh object={object} glow={hasCat ? 0.42 : 0} showLetter={false} seed={i * 31 + n} />
             {/* the key the cat stands on lights up — RGB keyboard vibe */}
             {isKeycap && hasCat && (
               <mesh position={[0, -0.22, 0]}>

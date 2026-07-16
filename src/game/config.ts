@@ -73,7 +73,7 @@ export const OBJECTS: ClimbObject[] = [
   { name: "marshmallow", shape: "marshmallow", color: "#fff4ec", ink: "#c07d95", roughness: 1, transmission: 0, metalness: 0, halfHeight: 0.5, sound: "marsh", impact: "soft" },
   { name: "bubble", shape: "bubble", color: "#ffffff", ink: "#1c4a78", roughness: 0, transmission: 1, metalness: 0, halfHeight: 0.46, sound: "pop", impact: "soft" },
   { name: "ice", shape: "ice", color: "#dff4ff", ink: "#2f6f9e", roughness: 0.03, transmission: 0.9, metalness: 0, halfHeight: 0.42, sound: "ice", impact: "snap" },
-  { name: "honey", shape: "honey", color: "#ffb52a", ink: "#5a3200", roughness: 0.06, transmission: 0.5, metalness: 0, halfHeight: 0.28, sound: "honey", impact: "soft" },
+  { name: "honey", shape: "honey", color: "#ffb52a", ink: "#5a3200", roughness: 0.06, transmission: 0.5, metalness: 0, halfHeight: 0.3, sound: "honey", impact: "soft" },
   { name: "slime", shape: "slime", color: "#7ad85f", ink: "#245c19", roughness: 0.05, transmission: 0.55, metalness: 0, halfHeight: 0.4, sound: "slime", impact: "soft" },
 ]
 

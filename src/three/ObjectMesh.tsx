@@ -3,6 +3,36 @@ import type { ClimbObject } from "../game/config"
 import { useGame } from "../game/store"
 import KeycapModel, { CAPS } from "./KeycapModel"
 
+/** Glossy amber honey — opaque so it always reads (no see-through-to-nothing). */
+function HoneyGloss({ glow = 0, color = "#f0a81c" }: { glow?: number; color?: string }) {
+  return (
+    <meshPhysicalMaterial
+      color={color}
+      roughness={0.09}
+      metalness={0}
+      clearcoat={1}
+      clearcoatRoughness={0.05}
+      sheen={0.5}
+      sheenColor="#ffe6a0"
+      emissive={color}
+      emissiveIntensity={0.12 + glow}
+    />
+  )
+}
+/** Warm beeswax comb walls. */
+function WaxMat({ glow = 0 }: { glow?: number }) {
+  return (
+    <meshPhysicalMaterial
+      color="#cf9a37"
+      roughness={0.55}
+      clearcoat={0.35}
+      clearcoatRoughness={0.35}
+      emissive="#cf9a37"
+      emissiveIntensity={glow * 0.5}
+    />
+  )
+}
+
 /**
  * Authentic, recognizable geometry for each climb object, centered at the
  * local origin (top face at +halfHeight). Shared by the game tower and the
@@ -36,7 +66,13 @@ function InnerBubble({ pos, r }: { pos: [number, number, number]; r: number }) {
   )
 }
 
-function Geometry({ object, glow }: { object: ClimbObject; glow: number }) {
+/** Deterministic pseudo-random in [0,1) from a number — stable across renders. */
+function hash(n: number): number {
+  const x = Math.sin(n * 12.9898) * 43758.5453
+  return x - Math.floor(x)
+}
+
+function Geometry({ object, glow, seed = 0 }: { object: ClimbObject; glow: number; seed?: number }) {
   const keycap = useGame((s) => s.keycap)
   const o = object
   switch (o.shape) {
@@ -162,22 +198,63 @@ function Geometry({ object, glow }: { object: ClimbObject; glow: number }) {
       )
 
     case "honey": {
-      // honeycomb cell: raised wax walls + glossy amber pool recessed inside + a drip.
-      // adjacent letters tile flat-to-flat, so a word reads as a comb row.
+      // comb + drizzle (option D): a wax comb cell with a recessed honey pool,
+      // a glossy honey layer overflowing the rim (the walkable top ~+0.28), a
+      // drizzle ribbon weaving across, and a drip off the front. Cells tile into
+      // a continuous oozing comb.
+      // big, wide hexagonal comb cell + honey randomly pooled/oozing on top
+      // (per-cell random, seeded so it doesn't re-roll on re-render).
+      const oozeCount = 2 + Math.floor(hash(seed * 1.7 + 0.5) * 3) // 2-4 pools
+      const ooze = Array.from({ length: oozeCount }, (_, k) => {
+        const a = hash(seed * 3.1 + k * 5.3) * Math.PI * 2
+        const rad = hash(seed * 2.3 + k * 7.1) * 0.5
+        return {
+          x: Math.cos(a) * rad,
+          z: Math.sin(a) * rad,
+          r: 0.2 + hash(seed * 4.7 + k * 2.9) * 0.28,
+          y: 0.26 + hash(seed * 5.9 + k) * 0.05,
+        }
+      })
+      const hasDrip = hash(seed * 9.1 + 0.3) > 0.45
+      const dripA = hash(seed * 6.7) * Math.PI * 2
       return (
-        <group rotation={[0, Math.PI / 6, 0]}>
-          <mesh>
-            <cylinderGeometry args={[0.56, 0.56, 0.56, 6]} />
-            <meshPhysicalMaterial color="#a86a00" roughness={0.55} clearcoat={0.4} clearcoatRoughness={0.3} emissive={glow > 0 ? "#a86a00" : "#000000"} emissiveIntensity={glow * 0.5} />
+        <group>
+          {/* big wide hexagonal wax comb cell — flats face neighbors (Y-rot 30°),
+              so a word tiles into a chunky honeycomb. Wax rim = walkable top (~+0.28). */}
+          <mesh position={[0, 0.0, 0]} rotation={[0, Math.PI / 6, 0]}>
+            <cylinderGeometry args={[0.82, 0.82, 0.56, 6]} />
+            <WaxMat glow={glow} />
           </mesh>
-          <mesh position={[0, -0.04, 0]}>
-            <cylinderGeometry args={[0.45, 0.45, 0.44, 6]} />
-            <Mat o={o} glow={glow} />
+          {/* thick raised rim so the hex wall reads boldly */}
+          <mesh position={[0, 0.2, 0]} rotation={[0, Math.PI / 6, 0]}>
+            <cylinderGeometry args={[0.72, 0.78, 0.24, 6]} />
+            <WaxMat glow={glow} />
           </mesh>
-          <mesh position={[0.34, -0.34, 0.14]} scale={[0.5, 1, 0.5]}>
-            <sphereGeometry args={[0.13, 12, 10]} />
-            <Mat o={o} />
+          {/* recessed glossy honey pool filling the cell, just below the rim */}
+          <mesh position={[0, 0.18, 0]} rotation={[0, Math.PI / 6, 0]}>
+            <cylinderGeometry args={[0.64, 0.64, 0.2, 6]} />
+            <HoneyGloss glow={glow} />
           </mesh>
+          {/* honey randomly pooled/oozing on top — irregular glossy blobs */}
+          {ooze.map((b, k) => (
+            <mesh key={k} position={[b.x, b.y, b.z]} scale={[1, 0.42, 1]}>
+              <sphereGeometry args={[b.r, 18, 14]} />
+              <HoneyGloss glow={glow} />
+            </mesh>
+          ))}
+          {/* an occasional drip oozing over a random edge */}
+          {hasDrip && (
+            <group position={[Math.cos(dripA) * 0.6, 0.05, Math.sin(dripA) * 0.6]}>
+              <mesh position={[0, -0.18, 0]} scale={[1, 2.3, 1]}>
+                <sphereGeometry args={[0.08, 14, 10]} />
+                <HoneyGloss glow={glow} />
+              </mesh>
+              <mesh position={[0, -0.4, 0]}>
+                <sphereGeometry args={[0.11, 14, 10]} />
+                <HoneyGloss glow={glow} />
+              </mesh>
+            </group>
+          )}
         </group>
       )
     }
@@ -210,16 +287,17 @@ interface Props {
   char?: string
   glow?: number
   showLetter?: boolean
+  seed?: number // stable per-cell variety (e.g. letter index) — keeps random layouts from re-rolling
 }
 
-export default function ObjectMesh({ object, char, glow = 0, showLetter = true }: Props) {
+export default function ObjectMesh({ object, char, glow = 0, showLetter = true, seed = 0 }: Props) {
   const keycap = useGame((s) => s.keycap)
   const isSpace = char === " "
   const ink =
     object.shape === "keycap" ? CAPS.find((c) => c.key === keycap)?.ink ?? object.ink : object.ink
   return (
     <group scale={isSpace ? [1.6, 1, 1] : [1, 1, 1]}>
-      <Geometry object={object} glow={glow} />
+      <Geometry object={object} glow={glow} seed={seed} />
       {showLetter && char && !isSpace && (
         <Text
           position={[0, object.halfHeight + 0.03, 0]}
