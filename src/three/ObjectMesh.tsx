@@ -1,7 +1,49 @@
 import { RoundedBox, Text } from "@react-three/drei"
 import type { ClimbObject } from "../game/config"
 import { useGame } from "../game/store"
-import KeycapModel, { CAPS } from "./KeycapModel"
+import { CAPS } from "./KeycapModel"
+
+// per-key RGB sweep for the pudding keycaps (consecutive keys step one hue)
+const RGB = ["#ff4d6d", "#ff9e3d", "#ffe14d", "#5ff0d0", "#4aa3ff", "#c07aff"]
+
+/** Translucent "pudding" keycap: opaque sculpted top + glowing translucent skirt
+ *  over an RGB underglow block. Uses emissive+opacity (not transmission, which
+ *  renders invisible over the alpha canvas). */
+function PuddingCap({ glow, rgb }: { glow: number; rgb: string }) {
+  return (
+    <group>
+      {/* RGB underglow block on the plate (narrower than key pitch so gaps show) */}
+      <mesh position={[0, -0.3, 0]}>
+        <boxGeometry args={[0.9, 0.14, 0.9]} />
+        <meshBasicMaterial color={rgb} toneMapped={false} />
+      </mesh>
+      {/* translucent glowing pudding skirt — base nearly touches neighbors */}
+      <RoundedBox args={[0.9, 0.34, 0.9]} radius={0.07} smoothness={4} position={[0, -0.02, 0]}>
+        <meshPhysicalMaterial
+          color={rgb}
+          emissive={rgb}
+          emissiveIntensity={1.4 + glow}
+          transparent
+          opacity={0.5}
+          roughness={0.12}
+          clearcoat={1}
+          clearcoatRoughness={0.1}
+        />
+      </RoundedBox>
+      {/* opaque sculpted top — tapered narrower so keys are clearly separated (Keychron/OEM look) */}
+      <RoundedBox args={[0.72, 0.32, 0.74]} radius={0.08} smoothness={4} position={[0, 0.17, 0]}>
+        <meshPhysicalMaterial
+          color="#24242a"
+          roughness={0.32}
+          clearcoat={0.7}
+          clearcoatRoughness={0.2}
+          emissive={glow > 0 ? rgb : "#000000"}
+          emissiveIntensity={glow * 0.6}
+        />
+      </RoundedBox>
+    </group>
+  )
+}
 
 /** Glossy amber honey — opaque so it always reads (no see-through-to-nothing). */
 function HoneyGloss({ glow = 0, color = "#f0a81c" }: { glow?: number; color?: string }) {
@@ -73,13 +115,12 @@ function hash(n: number): number {
 }
 
 function Geometry({ object, glow, seed = 0 }: { object: ClimbObject; glow: number; seed?: number }) {
-  const keycap = useGame((s) => s.keycap)
   const o = object
   switch (o.shape) {
     case "keycap": {
-      // render the player's selected keycap profile (MT3 / XDA)
-      const cap = CAPS.find((c) => c.key === keycap) ?? CAPS[0]
-      return <KeycapModel cap={cap} />
+      // pudding + RGB (option C): consecutive keys sweep through the hue palette
+      const rgb = RGB[(((Math.round(seed) % RGB.length) + RGB.length) % RGB.length)]
+      return <PuddingCap glow={glow} rgb={rgb} />
     }
 
     case "chocolate": {
