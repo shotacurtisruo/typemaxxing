@@ -107,8 +107,6 @@ export default function App() {
         } else {
           audio.playKey(pitch, pan, res.object.sound, res.object.impact, res.flow)
         }
-        // ice cracks a little more each time you land on it — a brittle tick on top
-        if (res.object.shape === "ice") audio.playCrack(pan)
       } else if (res.kind === "error") {
         audio.playDud(pan)
       }

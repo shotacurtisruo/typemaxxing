@@ -54,6 +54,7 @@ Reload the page — that material now plays your sample. Commit the files + mani
 |------|-----------|---------|--------|
 | mt3.mp3 | https://freesound.org/people/Code_Redder/sounds/537618/ | Creative Commons 0 | Code_Redder |
 | sticky_peel.mp3 | https://freesound.org/people/Keegan_Miner/sounds/474580/ | Creative Commons 0 | Keegan_Miner |
+| ice_cubes.mp3 | https://freesound.org/people/baidonovan/sounds/187349/ | Creative Commons 0 | baidonovan |
 
 > Keep this table honest — even CC0 is nice to credit, and Pixabay clips should
 > stay on Pixabay's license. Don't add anything you can't point to a source for.
