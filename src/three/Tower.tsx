@@ -22,6 +22,7 @@ export default function Tower() {
               word={word}
               variant="long"
               caret={wi === curWi ? ci : -1}
+              crossed={wi < curWi}
             />
           </group>
         )

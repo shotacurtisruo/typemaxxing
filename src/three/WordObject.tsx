@@ -185,6 +185,7 @@ interface Props {
   blobSlot?: number // (segmented) letter the character is on; -1 otherwise
   typedCount?: number // (segmented) letters already typed
   caret?: number // (long) caret slot in this word; -1 if not the current word — gets a gentle glow
+  crossed?: boolean // (long) the cat has fully climbed past this word — ice reads fully cracked
 }
 
 /**
@@ -193,7 +194,7 @@ interface Props {
  * word reads as a row of authentic objects. No letters are drawn on the 3D
  * objects themselves — the typing bar carries the text.
  */
-export default function WordObject({ object, word, variant, blobSlot = -1, typedCount = 0, caret = -1 }: Props) {
+export default function WordObject({ object, word, variant, blobSlot = -1, typedCount = 0, caret = -1, crossed = false }: Props) {
   const chars = word.split("")
   const n = chars.length
   const slot = (i: number) => (i - (n - 1) / 2) * GAP
@@ -219,9 +220,11 @@ export default function WordObject({ object, word, variant, blobSlot = -1, typed
       {isKeycap && <KeyboardBase n={n} />}
       {chars.map((_, i) => {
         const hasCat = i === caret
+        // crack level: fully-crossed word → 2; current word → 2 behind caret, 1 at caret, 0 ahead
+        const crackLevel = crossed ? 2 : caret < 0 ? 0 : i < caret ? 2 : i === caret ? 1 : 0
         return (
           <group key={i} position={[slot(i), 0, 0]}>
-            <ObjectMesh object={object} glow={hasCat ? 0.42 : 0} showLetter={false} seed={i * 31 + n} />
+            <ObjectMesh object={object} glow={hasCat ? 0.42 : 0} showLetter={false} seed={i * 31 + n} crack={crackLevel} />
             {/* the key the cat stands on lights up — RGB keyboard vibe */}
             {isKeycap && hasCat && (
               <mesh position={[0, -0.22, 0]}>

@@ -1,7 +1,54 @@
+import { useRef } from "react"
+import { useFrame } from "@react-three/fiber"
 import { RoundedBox, Text } from "@react-three/drei"
+import type { Group } from "three"
 import type { ClimbObject } from "../game/config"
 import { useGame } from "../game/store"
 import { CAPS } from "./KeycapModel"
+
+interface Crack {
+  x: number
+  y: number
+  z: number
+  rot: number
+  tilt: number
+  len: number
+  op: number
+  tier: number // 0 = always shown; higher tiers appear as the cat lands (crack level)
+}
+
+/** Hairline cracks that grow as the ice is landed on. `level` rises 0→1→2 as the
+ *  cat lands on / crosses the cell; higher-tier cracks scale in on each step. */
+function IceCracks({ cracks, level }: { cracks: Crack[]; level: number }) {
+  const grp = useRef<Group>(null)
+  const prev = useRef(level)
+  const anim = useRef(1)
+  useFrame((_, dt) => {
+    const g = grp.current
+    if (!g) return
+    if (level !== prev.current) {
+      if (level > prev.current) anim.current = 0 // a new tier just appeared — grow it in
+      prev.current = level
+    }
+    if (anim.current < 1) anim.current = Math.min(1, anim.current + dt * 3.5)
+    g.children.forEach((ch, i) => {
+      const c = cracks[i]
+      const vis = c.tier <= level
+      ch.visible = vis
+      if (vis) ch.scale.setX(c.tier === level ? Math.max(0.001, anim.current) : 1)
+    })
+  })
+  return (
+    <group ref={grp}>
+      {cracks.map((c, k) => (
+        <mesh key={k} position={[c.x, c.y, c.z]} rotation={[c.tilt * 0.4, c.rot, c.tilt]}>
+          <boxGeometry args={[c.len, 0.014, 0.014]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={c.op} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
 
 // per-key RGB sweep for the pudding keycaps (consecutive keys step one hue)
 const RGB = ["#ff4d6d", "#ff9e3d", "#ffe14d", "#5ff0d0", "#4aa3ff", "#c07aff"]
@@ -114,7 +161,7 @@ function hash(n: number): number {
   return x - Math.floor(x)
 }
 
-function Geometry({ object, glow, seed = 0 }: { object: ClimbObject; glow: number; seed?: number }) {
+function Geometry({ object, glow, seed = 0, crack = 0 }: { object: ClimbObject; glow: number; seed?: number; crack?: number }) {
   const o = object
   switch (o.shape) {
     case "keycap": {
@@ -205,8 +252,20 @@ function Geometry({ object, glow, seed = 0 }: { object: ClimbObject; glow: numbe
         </mesh>
       )
 
-    case "ice":
-      // glassy blue cube (alpha, so the sky shows through) + cloudy frozen core + hairline cracks
+    case "ice": {
+      // frosted glassy cube (alpha) + cloudy frozen core + RANDOM hairline cracks
+      // that GROW as the cat lands (seeded per cell so they don't re-roll).
+      const tiers = [0, 0, 1, 1, 2] // 2 always-on, 2 appear on landing, 1 on full cross
+      const cracks: Crack[] = tiers.map((tier, k) => ({
+        tier,
+        x: (hash(seed * 3.3 + k * 2.1) * 2 - 1) * 0.3,
+        z: (hash(seed * 4.1 + k * 1.7) * 2 - 1) * 0.3,
+        y: (hash(seed * 7.2 + k) * 2 - 1) * 0.28,
+        rot: hash(seed * 2.1 + k * 3.7) * Math.PI,
+        tilt: (hash(seed * 6.6 + k) * 2 - 1) * 0.6,
+        len: 0.34 + hash(seed * 5.5 + k) * 0.44,
+        op: 0.4 + hash(seed * 8.3 + k) * 0.3,
+      }))
       return (
         <group>
           <RoundedBox args={[0.9, 0.84, 0.9]} radius={0.08} smoothness={4}>
@@ -224,19 +283,19 @@ function Geometry({ object, glow, seed = 0 }: { object: ClimbObject; glow: numbe
               emissiveIntensity={glow * 0.6}
             />
           </RoundedBox>
+          {/* cloudy frozen core */}
           <RoundedBox args={[0.42, 0.4, 0.42]} radius={0.12} smoothness={3}>
             <meshStandardMaterial color="#ffffff" transparent opacity={0.55} roughness={1} depthWrite={false} />
           </RoundedBox>
-          <mesh rotation={[0.4, 0.5, 0.25]} position={[-0.05, 0.12, 0.05]}>
-            <boxGeometry args={[0.68, 0.012, 0.012]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.65} />
-          </mesh>
-          <mesh rotation={[-0.3, -0.7, 0.55]} position={[0.1, -0.08, -0.04]}>
-            <boxGeometry args={[0.5, 0.01, 0.01]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.5} />
-          </mesh>
+          {/* frost dusting on the top face */}
+          <RoundedBox args={[0.84, 0.1, 0.84]} radius={0.05} smoothness={3} position={[0, 0.4, 0]}>
+            <meshStandardMaterial color="#eaf6ff" transparent opacity={0.7} roughness={0.9} />
+          </RoundedBox>
+          {/* random hairline cracks that grow as the cat lands */}
+          <IceCracks cracks={cracks} level={crack} />
         </group>
       )
+    }
 
     case "honey": {
       // comb + drizzle (option D): a wax comb cell with a recessed honey pool,
@@ -329,16 +388,17 @@ interface Props {
   glow?: number
   showLetter?: boolean
   seed?: number // stable per-cell variety (e.g. letter index) — keeps random layouts from re-rolling
+  crack?: number // ice crack level (0 untouched → 2 fully crossed)
 }
 
-export default function ObjectMesh({ object, char, glow = 0, showLetter = true, seed = 0 }: Props) {
+export default function ObjectMesh({ object, char, glow = 0, showLetter = true, seed = 0, crack = 0 }: Props) {
   const keycap = useGame((s) => s.keycap)
   const isSpace = char === " "
   const ink =
     object.shape === "keycap" ? CAPS.find((c) => c.key === keycap)?.ink ?? object.ink : object.ink
   return (
     <group scale={isSpace ? [1.6, 1, 1] : [1, 1, 1]}>
-      <Geometry object={object} glow={glow} seed={seed} />
+      <Geometry object={object} glow={glow} seed={seed} crack={crack} />
       {showLetter && char && !isSpace && (
         <Text
           position={[0, object.halfHeight + 0.03, 0]}

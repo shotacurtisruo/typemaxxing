@@ -285,6 +285,29 @@ class AudioEngine {
     osc.stop(t + 0.19)
   }
 
+  /** A fresh crack forming in ice on landing: a brittle propagating micro-crackle. */
+  playCrack(pan = 0) {
+    const ctx = this.ctx
+    if (!ctx) return
+    const t = ctx.currentTime
+    const out = this.pan(pan, true)
+    // a few rapid brittle ticks — the crack propagating through the crystal
+    ;[0, 0.013, 0.031].forEach((dt, i) => {
+      this.noiseBurst(out, t + dt, { type: "highpass", freq: 4200 + i * 900, gain: 0.12 - i * 0.03, decay: 0.012 })
+    })
+    // a tiny glassy ping riding on top
+    const osc = ctx.createOscillator()
+    osc.type = "sine"
+    osc.frequency.setValueAtTime(2700, t)
+    osc.frequency.exponentialRampToValueAtTime(2200, t + 0.05)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.045, t)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06)
+    osc.connect(g).connect(out)
+    osc.start(t)
+    osc.stop(t + 0.07)
+  }
+
   /** A slip & fall: a descending comedic "whoop". */
   playSlip(pan = 0) {
     const ctx = this.ctx
