@@ -1,4 +1,4 @@
 [
   { "key": "mt3", "file": "mt3.mp3", "gain": 0.9, "baseFreq": 440.0 },
-  { "key": "honey", "file": "honey.mp3", "gain": 1.0, "baseFreq": 330.0 }
+  { "key": "honey", "file": "sticky_peel.mp3", "gain": 3.0, "baseFreq": 330.0, "offset": 1.48, "dur": 0.36 }
 ]

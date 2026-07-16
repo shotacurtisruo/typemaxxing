@@ -28,6 +28,8 @@ class AudioEngine {
   private samples: Record<string, AudioBuffer> = {}
   private sampleGain: Record<string, number> = {}
   private sampleBase: Record<string, number> = {} // reference freq each sample was recorded at
+  private sampleOffset: Record<string, number> = {} // start offset into the clip (s)
+  private sampleDur: Record<string, number> = {} // play only this many seconds (0 = whole clip)
 
   /** Must be called from a user gesture (first keypress). Safe to call repeatedly. */
   start() {
@@ -73,7 +75,7 @@ class AudioEngine {
    * call before start(): it decodes lazily once the AudioContext exists.
    */
   async loadManifest(url = "/sounds/manifest.json") {
-    let list: { key: string; file: string; gain?: number; baseFreq?: number }[]
+    let list: { key: string; file: string; gain?: number; baseFreq?: number; offset?: number; dur?: number }[]
     try {
       const res = await fetch(url)
       if (!res.ok) return
@@ -92,6 +94,8 @@ class AudioEngine {
           this.samples[e.key] = buf
           this.sampleGain[e.key] = e.gain ?? 1
           this.sampleBase[e.key] = e.baseFreq ?? 261.63 // C4 default
+          this.sampleOffset[e.key] = e.offset ?? 0
+          this.sampleDur[e.key] = e.dur ?? 0
         } catch {
           /* leave this material on synth */
         }
@@ -111,7 +115,10 @@ class AudioEngine {
     const g = ctx.createGain()
     g.gain.value = this.sampleGain[key] ?? 1
     src.connect(g).connect(this.pan(pan, true))
-    src.start(ctx.currentTime)
+    const offset = this.sampleOffset[key] ?? 0
+    const dur = this.sampleDur[key] ?? 0
+    if (dur > 0) src.start(ctx.currentTime, offset, dur)
+    else src.start(ctx.currentTime, offset)
   }
 
   /** Flow (0..1) opens up reverb + ambience for a warmer, deeper mix. */
