@@ -44,6 +44,11 @@ export default function App() {
     audio.setAmbience(weather.name)
   }, [weather.name])
 
+  // Load any CC0 material samples (falls back to synth for missing ones).
+  useEffect(() => {
+    void audio.loadManifest()
+  }, [])
+
   // Timed modes: end the run when the clock hits zero.
   useEffect(() => {
     const id = setInterval(() => {

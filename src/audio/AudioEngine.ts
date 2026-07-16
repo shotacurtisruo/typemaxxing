@@ -21,6 +21,14 @@ class AudioEngine {
   private padGain: GainNode | null = null
   private ambBase = 0.03 // base ambience level for the current weather
 
+  // --- recorded-sample layer (optional; synth is the fallback) ---
+  // A decoded CC0 sample per material/keycap tone. When present, it PLAYS
+  // instead of the synthesized version, pitched via playbackRate to keep the
+  // rising-pentatonic melody. Absent → the procedural synth is used.
+  private samples: Record<string, AudioBuffer> = {}
+  private sampleGain: Record<string, number> = {}
+  private sampleBase: Record<string, number> = {} // reference freq each sample was recorded at
+
   /** Must be called from a user gesture (first keypress). Safe to call repeatedly. */
   start() {
     if (this.ctx) {
@@ -57,6 +65,55 @@ class AudioEngine {
     }
   }
 
+  /**
+   * Load CC0 samples listed in /sounds/manifest.json. Each entry:
+   *   { "key": "honey", "file": "honey.mp3", "gain": 0.9, "baseFreq": 261.63 }
+   * `key` is a MaterialSound ("squish","honey",…) or a keycap tone ("mt3"/"xda").
+   * Missing files fail silently — that material keeps its synth voice. Safe to
+   * call before start(): it decodes lazily once the AudioContext exists.
+   */
+  async loadManifest(url = "/sounds/manifest.json") {
+    let list: { key: string; file: string; gain?: number; baseFreq?: number }[]
+    try {
+      const res = await fetch(url)
+      if (!res.ok) return
+      list = await res.json()
+    } catch {
+      return
+    }
+    if (!this.ctx) this.start()
+    const base = url.slice(0, url.lastIndexOf("/") + 1)
+    await Promise.all(
+      list.map(async (e) => {
+        try {
+          const res = await fetch(base + e.file)
+          if (!res.ok) return
+          const buf = await this.ctx!.decodeAudioData(await res.arrayBuffer())
+          this.samples[e.key] = buf
+          this.sampleGain[e.key] = e.gain ?? 1
+          this.sampleBase[e.key] = e.baseFreq ?? 261.63 // C4 default
+        } catch {
+          /* leave this material on synth */
+        }
+      })
+    )
+  }
+
+  /** Play a loaded sample, pitched toward `freq` (gently, so it never chipmunks). */
+  private playSample(key: string, freq: number, pan: number) {
+    const ctx = this.ctx!
+    const buf = this.samples[key]
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    // map the melody onto playbackRate but clamp so texture stays natural
+    const ratio = freq / (this.sampleBase[key] || 261.63)
+    src.playbackRate.value = Math.min(1.35, Math.max(0.75, ratio))
+    const g = ctx.createGain()
+    g.gain.value = this.sampleGain[key] ?? 1
+    src.connect(g).connect(this.pan(pan, true))
+    src.start(ctx.currentTime)
+  }
+
   /** Flow (0..1) opens up reverb + ambience for a warmer, deeper mix. */
   setFlow(flow: number) {
     if (!this.ctx) return
@@ -87,8 +144,14 @@ class AudioEngine {
   playKey(pitch: number, pan: number, sound: MaterialSound, impact: Impact, flow: number) {
     if (!this.ctx) return
     const freq = freqFor(pitch)
-    this.playImpact(impact, freq, pan)
-    this.playMaterial(sound, freq, pan)
+    if (this.samples[sound]) {
+      // recorded material sample replaces the synth voice; keep the light impact tick underneath
+      this.playImpact(impact, freq, pan)
+      this.playSample(sound, freq, pan)
+    } else {
+      this.playImpact(impact, freq, pan)
+      this.playMaterial(sound, freq, pan)
+    }
     this.setFlow(flow)
   }
 
@@ -97,6 +160,12 @@ class AudioEngine {
     const ctx = this.ctx
     if (!ctx) return
     const freq = freqFor(pitch)
+    // recorded switch sample (if provided for this tone) replaces the synth thock
+    if (this.samples[tone]) {
+      this.playSample(tone, freq, pan)
+      this.setFlow(flow)
+      return
+    }
     const t = ctx.currentTime
     const out = this.pan(pan, true)
 
