@@ -17,9 +17,9 @@ interface Crack {
   tier: number // 0 = always shown; higher tiers appear as the cat lands (crack level)
 }
 
-/** Hairline cracks that grow as the ice is landed on. `level` rises 0→1→2 as the
- *  cat lands on / crosses the cell; higher-tier cracks scale in on each step. */
-function IceCracks({ cracks, level }: { cracks: Crack[]; level: number }) {
+/** Cracks that grow as the cell is landed on. `level` rises 0→1→2 as the cat
+ *  lands on / crosses the cell; higher-tier cracks scale in on each step. */
+function CrackLines({ cracks, level, color = "#ffffff" }: { cracks: Crack[]; level: number; color?: string }) {
   const grp = useRef<Group>(null)
   const prev = useRef(level)
   const anim = useRef(1)
@@ -42,11 +42,26 @@ function IceCracks({ cracks, level }: { cracks: Crack[]; level: number }) {
     <group ref={grp}>
       {cracks.map((c, k) => (
         <mesh key={k} position={[c.x, c.y, c.z]} rotation={[c.tilt * 0.4, c.rot, c.tilt]}>
-          <boxGeometry args={[c.len, 0.014, 0.014]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={c.op} />
+          <boxGeometry args={[c.len, 0.016, 0.016]} />
+          <meshBasicMaterial color={color} transparent opacity={c.op} />
         </mesh>
       ))}
     </group>
+  )
+}
+
+/** Mostly-matte chocolate with just a hint of temper sheen. */
+function ChocMat({ glow = 0, color = "#5f3417" }: { glow?: number; color?: string }) {
+  return (
+    <meshPhysicalMaterial
+      color={color}
+      roughness={0.6}
+      metalness={0}
+      clearcoat={0.3}
+      clearcoatRoughness={0.45}
+      emissive={glow > 0 ? color : "#000000"}
+      emissiveIntensity={glow * 0.4}
+    />
   )
 }
 
@@ -171,21 +186,43 @@ function Geometry({ object, glow, seed = 0, crack = 0 }: { object: ClimbObject; 
     }
 
     case "chocolate": {
-      // warm tempered bar: thin rimmed slab + tight grid of beveled squares
-      const cols = [-0.53, 0, 0.53]
-      const rows = [-0.25, 0.25]
+      // matte molded bar: dark base slab (connects cells into one bar) + two rows
+      // of beveled segments whose width VARIES per cell (not machine-uniform).
+      // Dark fracture cracks grow along the path the cat takes.
+      // each row's segment width varies independently — handmade, not uniform
+      const rows = [-0.32, 0.32]
+      const segWs = [0.56 + hash(seed * 1.3 + 0.4) * 0.44, 0.56 + hash(seed * 1.9 + 0.7) * 0.44] // 0.56–1.0
+      const segD = 0.44 + hash(seed * 2.6 + 0.1) * 0.14
+      // fracture cracks sit ON a segment top and stay inside it (no bleed into grooves/air)
+      const tiers = [0, 0, 1, 1, 2]
+      const cracks: Crack[] = tiers.map((tier, k) => {
+        const ri = hash(seed * 9.1 + k) > 0.5 ? 1 : 0
+        const w = segWs[ri]
+        const len = 0.12 + hash(seed * 5.5 + k) * 0.14 // 0.12–0.26
+        const xm = Math.max(0, w / 2 - len / 2 - 0.06) // keep the whole crack on the segment
+        return {
+          tier,
+          x: (hash(seed * 3.3 + k * 2.1) * 2 - 1) * xm,
+          z: rows[ri],
+          y: 0.225,
+          rot: hash(seed * 2.1 + k * 3.7) * Math.PI,
+          tilt: (hash(seed * 6.6 + k) * 2 - 1) * 0.12,
+          len,
+          op: 0.45 + hash(seed * 8.3 + k) * 0.3,
+        }
+      })
       return (
         <group>
-          <RoundedBox args={[1.68, 0.18, 1.12]} radius={0.04} smoothness={3} position={[0, -0.13, 0]}>
-            <Mat o={o} glow={glow} color="#472a10" />
+          <RoundedBox args={[1.02, 0.14, 1.3]} radius={0.03} smoothness={3} position={[0, -0.08, 0]}>
+            <ChocMat glow={glow} color="#2f1a0a" />
           </RoundedBox>
-          {cols.map((x) =>
-            rows.map((z) => (
-              <RoundedBox key={`${x}-${z}`} args={[0.47, 0.2, 0.44]} radius={0.05} smoothness={3} position={[x, 0.11, z]}>
-                <Mat o={o} glow={glow} />
-              </RoundedBox>
-            ))
-          )}
+          {rows.map((z, i) => (
+            <RoundedBox key={i} args={[segWs[i], 0.26, segD]} radius={0.06} smoothness={4} position={[0, 0.09, z]}>
+              <ChocMat glow={glow} />
+            </RoundedBox>
+          ))}
+          {/* fracture cracks (lighter matte interior) that grow as the cat crosses */}
+          <CrackLines cracks={cracks} level={crack} color="#a06a3c" />
         </group>
       )
     }
@@ -292,7 +329,7 @@ function Geometry({ object, glow, seed = 0, crack = 0 }: { object: ClimbObject; 
             <meshStandardMaterial color="#eaf6ff" transparent opacity={0.7} roughness={0.9} />
           </RoundedBox>
           {/* random hairline cracks that grow as the cat lands */}
-          <IceCracks cracks={cracks} level={crack} />
+          <CrackLines cracks={cracks} level={crack} color="#ffffff" />
         </group>
       )
     }
