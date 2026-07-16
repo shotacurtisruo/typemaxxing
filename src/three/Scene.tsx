@@ -16,13 +16,14 @@ function ClimbCamera() {
   const look = useRef(new Vector3())
 
   useFrame(({ camera, clock }, dt) => {
-    const { baseWord, wi, ci, words, seed } = useGame.getState()
+    const { baseWord, wi, ci, words, seed, angles } = useGame.getState()
     const W = baseWord + wi
     const len = words[wi]?.length ?? 1
+    const angle = angles[wi] ?? 0
 
     // frame the word's center (stable while the blob runs across); nudge toward the blob
-    const [cx, cy, cz] = wordCenter(W)
-    const [bx, , bz] = slotWorldPos(W, Math.min(ci, len - 1), len)
+    const [cx, cy, cz] = wordCenter(angle, W)
+    const [bx, , bz] = slotWorldPos(angle, W, Math.min(ci, len - 1), len)
     let fx = cx * 0.7 + bx * 0.3
     let fz = cz * 0.7 + bz * 0.3
     let top = cy + objectFor(W + seed).halfHeight

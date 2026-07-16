@@ -96,7 +96,8 @@ export default function App() {
 
       const res = useGame.getState().press(e.key)
       if (!res) return
-      const pan = panForWord(res.worldIndex)
+      const gs = useGame.getState()
+      const pan = panForWord(gs.angles[gs.wi] ?? 0)
       if (res.slip) {
         audio.playSlip(pan)
       } else if (res.kind === "correct" || res.kind === "jump") {

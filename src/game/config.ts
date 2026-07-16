@@ -3,32 +3,54 @@
 // --- Word-based climb: one word = one object; blob runs across its letters ---
 export const GAP = 1.0 // spacing between letters within a word-object
 export const WORD_RADIUS = 5.5 // spiral radius of word rows
-export const WORD_ANGLE = 0.82 // radians between consecutive words (tighter = shorter jumps)
 export const WORD_RISE = 1.05 // vertical gain per word
+export const WORD_PAD = 1.3 // arc gap (world units) between adjacent word platforms
 export const ZONE_SIZE = 3 // words per material zone
 export const WEATHER_SIZE = 9 // words per weather (3 material zones)
 
-export function wordRotationY(W: number): number {
-  return -(W * WORD_ANGLE + Math.PI / 2)
+/**
+ * Length-aware cumulative angle for each word. Every word claims arc on the
+ * loop proportional to its own length (+ a constant pad), so long words no
+ * longer overrun their neighbors — platform gaps stay equal regardless of
+ * word length. Returns the center angle (radians) per word.
+ */
+export function layoutAngles(words: string[], startArc = 0): number[] {
+  const angles: number[] = []
+  let arc = startArc
+  for (const w of words) {
+    const half = ((w.length - 1) / 2) * GAP
+    angles.push((arc + half) / WORD_RADIUS)
+    arc += w.length * GAP + WORD_PAD
+  }
+  return angles
 }
 
-export function wordCenter(W: number): [number, number, number] {
-  const a = W * WORD_ANGLE
-  return [Math.cos(a) * WORD_RADIUS, W * WORD_RISE, Math.sin(a) * WORD_RADIUS]
+/** Total arc a passage consumes — used to continue the spiral into the next one. */
+export function passageArc(words: string[]): number {
+  let arc = 0
+  for (const w of words) arc += w.length * GAP + WORD_PAD
+  return arc
 }
 
-/** World position of letter-slot `s` (fractional ok) within word `W` of length `len`. */
-export function slotWorldPos(W: number, s: number, len: number): [number, number, number] {
-  const a = W * WORD_ANGLE
-  const rot = wordRotationY(W)
+export function wordRotationY(angle: number): number {
+  return -(angle + Math.PI / 2)
+}
+
+export function wordCenter(angle: number, heightIndex: number): [number, number, number] {
+  return [Math.cos(angle) * WORD_RADIUS, heightIndex * WORD_RISE, Math.sin(angle) * WORD_RADIUS]
+}
+
+/** World position of letter-slot `s` (fractional ok) within a word at `angle`, length `len`. */
+export function slotWorldPos(angle: number, heightIndex: number, s: number, len: number): [number, number, number] {
+  const rot = wordRotationY(angle)
   const localX = (s - (len - 1) / 2) * GAP
-  const cx = Math.cos(a) * WORD_RADIUS
-  const cz = Math.sin(a) * WORD_RADIUS
-  return [cx + localX * Math.cos(rot), W * WORD_RISE, cz - localX * Math.sin(rot)]
+  const cx = Math.cos(angle) * WORD_RADIUS
+  const cz = Math.sin(angle) * WORD_RADIUS
+  return [cx + localX * Math.cos(rot), heightIndex * WORD_RISE, cz - localX * Math.sin(rot)]
 }
 
-export function panForWord(W: number): number {
-  return Math.cos(W * WORD_ANGLE)
+export function panForWord(angle: number): number {
+  return Math.cos(angle)
 }
 
 /** Interpolate two "#rrggbb" colors. */

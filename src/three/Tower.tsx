@@ -9,14 +9,16 @@ export default function Tower() {
   const curWi = useGame((s) => s.wi)
   const ci = useGame((s) => s.ci)
   const seed = useGame((s) => s.seed)
+  const angles = useGame((s) => s.angles)
 
   return (
     <group>
       {words.map((word, wi) => {
         const W = baseWord + wi
-        const [x, y, z] = wordCenter(W)
+        const angle = angles[wi] ?? 0
+        const [x, y, z] = wordCenter(angle, W)
         return (
-          <group key={W} position={[x, y, z]} rotation={[0, wordRotationY(W), 0]}>
+          <group key={W} position={[x, y, z]} rotation={[0, wordRotationY(angle), 0]}>
             <WordObject
               object={objectFor(W + seed)}
               word={word}

@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { generatePassage } from "./passage"
-import { objectFor, weatherFor, type ClimbObject, type Weather } from "./config"
+import { objectFor, weatherFor, layoutAngles, passageArc, type ClimbObject, type Weather } from "./config"
 
 /** Per-letter state: 0 = untyped, 1 = correct, 2 = wrong (red). */
 export type Mark = 0 | 1 | 2
@@ -47,6 +47,8 @@ interface GameState {
   wi: number // current word index within the passage
   ci: number // caret index within the current word
   baseWord: number // words completed in earlier passages (endless)
+  angles: number[] // per-word center angle on the spiral (length-aware spacing)
+  arcBase: number // arc where the current passage starts (carries the spiral forward)
   seed: number // world offset — randomizes materials/weather per run
   freshReds: number // errors since the last fall (fall at RED_LIMIT)
   errors: number
@@ -95,7 +97,7 @@ const FLOW_LOSS = 0.25
 
 const newSeed = () => Math.floor(Math.random() * 997)
 
-function fresh() {
+function fresh(arcBase = 0) {
   const passage = generatePassage()
   const words = passage.split(" ")
   return {
@@ -104,6 +106,8 @@ function fresh() {
     wi: 0,
     ci: 0,
     baseWord: 0,
+    angles: layoutAngles(words, arcBase),
+    arcBase,
   }
 }
 
@@ -226,11 +230,15 @@ export const useGame = create<GameState>((set, get) => ({
       let words = s.words
       let baseWord = s.baseWord
       let nextMarks = marks
+      let angles = s.angles
+      let arcBase = s.arcBase
       if (wi >= words.length) {
         baseWord += words.length
-        const f = fresh()
+        arcBase = s.arcBase + passageArc(s.words) // continue the spiral
+        const f = fresh(arcBase)
         words = f.words
         nextMarks = f.marks
+        angles = f.angles
         wi = 0
       }
       const nextW = baseWord + wi
@@ -240,6 +248,8 @@ export const useGame = create<GameState>((set, get) => ({
       set({
         words,
         marks: nextMarks,
+        angles,
+        arcBase,
         wi,
         ci: 0,
         baseWord,

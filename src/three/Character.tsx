@@ -224,8 +224,9 @@ export default function Character() {
     const { baseWord, wi, ci, words } = st
     const W = baseWord + wi
     const len = words[wi]?.length ?? 1
+    const angle = st.angles[wi] ?? 0
     const s = Math.min(ci, len - 0.4) // stand at the caret; hold at the platform edge when done
-    const [gx, gy, gz] = slotWorldPos(W, s, len)
+    const [gx, gy, gz] = slotWorldPos(angle, W, s, len)
     goal.current.set(gx, gy + objectFor(W + st.seed).halfHeight, gz)
 
     if (!inited.current) {
@@ -292,7 +293,7 @@ export default function Character() {
         dur.current = 0.28
         from.current.copy(g.position)
         to.current.copy(goal.current)
-        audio.playThud(panForWord(W))
+        audio.playThud(panForWord(angle))
         shake(0.55)
       }
     } else if (mode.current === "recover") {
