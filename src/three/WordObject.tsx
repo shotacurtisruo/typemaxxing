@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useFrame } from "@react-three/fiber"
-import { RoundedBox, Text } from "@react-three/drei"
+import { RoundedBox } from "@react-three/drei"
 import type { Group, Mesh, Material } from "three"
 import { GAP, type ClimbObject, type Shape } from "../game/config"
-import type { Mark } from "../game/store"
 import ObjectMesh from "./ObjectMesh"
 
 export type Variant = "segmented" | "long"
@@ -179,257 +178,32 @@ function LetterPiece({ object, char, index, blobSlot, typedCount }: { object: Cl
   )
 }
 
-function LMat({ o, color }: { o: ClimbObject; color?: string }) {
-  return (
-    <meshPhysicalMaterial
-      color={color ?? o.color}
-      roughness={o.roughness}
-      metalness={o.metalness}
-      transmission={o.transmission}
-      thickness={0.7}
-      ior={o.shape === "ice" || o.shape === "bubble" ? 1.31 : 1.3}
-      clearcoat={o.transmission > 0 || o.shape === "chocolate" ? 1 : 0.3}
-      clearcoatRoughness={0.15}
-    />
-  )
-}
-
-/** Tiny trapped air bubble for translucent bodies. */
-function AirBubble({ pos, r }: { pos: [number, number, number]; r: number }) {
-  return (
-    <mesh position={pos}>
-      <sphereGeometry args={[r, 10, 8]} />
-      <meshStandardMaterial color="#ffffff" transparent opacity={0.5} roughness={0.2} depthWrite={false} />
-    </mesh>
-  )
-}
-
-/** One continuous elongated piece spanning the whole word — full detail, elongated. */
-function LongMesh({ object: o, n }: { object: ClimbObject; n: number }) {
-  const L = Math.max(n, 1) * GAP
-  const slots = Array.from({ length: Math.max(n, 1) }, (_, i) => (i - (n - 1) / 2) * GAP)
-  switch (o.shape) {
-    case "keycap": // a keyboard: base plate + RGB underglow + chunky caps with per-letter seams
-      return (
-        <group>
-          <RoundedBox args={[L + 0.4, 0.24, 1.62]} radius={0.1} smoothness={4} position={[0, -0.38, 0]}>
-            <meshPhysicalMaterial color="#1c2029" roughness={0.5} clearcoat={0.3} />
-          </RoundedBox>
-          <mesh position={[0, -0.55, 0]}>
-            <boxGeometry args={[L + 0.55, 0.1, 1.8]} />
-            <meshBasicMaterial color="#7ad0ff" toneMapped={false} />
-          </mesh>
-          <RoundedBox args={[L, 0.3, 1.34]} radius={0.05} smoothness={4} position={[0, -0.11, 0]}>
-            <LMat o={o} color="#3c4450" />
-          </RoundedBox>
-          <RoundedBox args={[L - 0.14, 0.3, 1.14]} radius={0.08} smoothness={4} position={[0, 0.12, 0]}>
-            <LMat o={o} color="#454e5c" />
-          </RoundedBox>
-          {/* seams between the letters — reads as individual keys again */}
-          {slots.slice(1).map((x, i) => (
-            <mesh key={i} position={[x - GAP / 2, 0.14, 0]}>
-              <boxGeometry args={[0.045, 0.28, 1.16]} />
-              <meshStandardMaterial color="#20242c" roughness={0.6} />
-            </mesh>
-          ))}
-        </group>
-      )
-    case "chocolate": // rimmed slab + tight beveled squares per letter
-      return (
-        <group>
-          <RoundedBox args={[L + 0.06, 0.18, 1.3]} radius={0.04} smoothness={3} position={[0, -0.13, 0]}>
-            <LMat o={o} color="#472a10" />
-          </RoundedBox>
-          {slots.map((x, i) =>
-            [-0.3, 0.3].map((z, j) => (
-              <RoundedBox key={`${i}-${j}`} args={[GAP * 0.74, 0.2, 0.52]} radius={0.05} smoothness={3} position={[x, 0.11, z]}>
-                <LMat o={o} />
-              </RoundedBox>
-            ))
-          )}
-        </group>
-      )
-    case "jelly": // slumped gelatin loaf, scalloped per letter, trapped micro-bubbles
-      return (
-        <group>
-          <RoundedBox args={[L + 0.1, 0.36, 1.32]} radius={0.16} smoothness={4} position={[0, -0.28, 0]}>
-            <LMat o={o} />
-          </RoundedBox>
-          <RoundedBox args={[L - 0.02, 0.84, 1.16]} radius={0.22} smoothness={5} position={[0, -0.02, 0]}>
-            <LMat o={o} />
-          </RoundedBox>
-          {/* per-letter wobble domes — the gummy scallop */}
-          {slots.map((x, i) => (
-            <mesh key={`d${i}`} position={[x, 0.28, 0]} scale={[0.95, 0.36, 1.1]}>
-              <sphereGeometry args={[0.5, 20, 14]} />
-              <LMat o={o} />
-            </mesh>
-          ))}
-          {slots.map((x, i) => (
-            <AirBubble key={i} pos={[x + (i % 2 ? 0.15 : -0.12), 0.08 + (i % 3) * 0.1, i % 2 ? -0.1 : 0.14]} r={0.04} />
-          ))}
-        </group>
-      )
-    case "butter": // fat pale stick with a deeper-yellow cut face
-      return (
-        <group>
-          <RoundedBox args={[L - 0.14, 0.5, 0.98]} radius={0.06} smoothness={3} position={[-0.07, 0, 0]}>
-            <LMat o={o} />
-          </RoundedBox>
-          <RoundedBox args={[0.14, 0.46, 0.92]} radius={0.04} smoothness={3} position={[L / 2 - 0.06, 0, 0]}>
-            <LMat o={o} color="#e9bd41" />
-          </RoundedBox>
-        </group>
-      )
-    case "marshmallow": // puffy rope with per-letter pinches
-      return (
-        <group>
-          <mesh rotation={[0, 0, Math.PI / 2]}>
-            <capsuleGeometry args={[0.5, Math.max(0.2, L - 1.0), 8, 24]} />
-            <LMat o={o} />
-          </mesh>
-          {slots.slice(1).map((x, i) => (
-            <mesh key={i} position={[x - GAP / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <torusGeometry args={[0.42, 0.1, 10, 22]} />
-              <LMat o={o} color="#f2e0d4" />
-            </mesh>
-          ))}
-        </group>
-      )
-    case "bubble": { // a chain of soap bubbles, one per letter
-      const bubbleMat = (
-        <meshPhysicalMaterial
-          color="#dcefff"
-          transparent
-          opacity={0.24}
-          depthWrite={false}
-          roughness={0}
-          metalness={0}
-          ior={1.33}
-          iridescence={1}
-          iridescenceIOR={1.33}
-          iridescenceThicknessRange={[120, 480]}
-          clearcoat={1}
-          clearcoatRoughness={0}
-        />
-      )
-      return (
-        <group>
-          {slots.map((x, i) => (
-            <mesh key={i} position={[x, 0, 0]} scale={[1.15, 0.92, 1.15]}>
-              <sphereGeometry args={[0.5, 32, 22]} />
-              {bubbleMat}
-            </mesh>
-          ))}
-        </group>
-      )
-    }
-    case "ice": // glassy block with a cloudy frozen core + hairline cracks
-      return (
-        <group>
-          <RoundedBox args={[L, 0.84, 1.15]} radius={0.09} smoothness={4}>
-            <meshPhysicalMaterial
-              color="#cfeaff"
-              transparent
-              opacity={0.55}
-              depthWrite={false}
-              roughness={0.03}
-              metalness={0}
-              ior={1.31}
-              clearcoat={1}
-              clearcoatRoughness={0.05}
-            />
-          </RoundedBox>
-          <RoundedBox args={[L * 0.6, 0.4, 0.55]} radius={0.12} smoothness={3}>
-            <meshStandardMaterial color="#ffffff" transparent opacity={0.55} roughness={1} depthWrite={false} />
-          </RoundedBox>
-          <mesh rotation={[0.4, 0.5, 0.25]} position={[-L * 0.18, 0.12, 0.05]}>
-            <boxGeometry args={[0.68, 0.012, 0.012]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.65} />
-          </mesh>
-          <mesh rotation={[-0.3, -0.7, 0.55]} position={[L * 0.2, -0.08, -0.04]}>
-            <boxGeometry args={[0.5, 0.01, 0.01]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.5} />
-          </mesh>
-        </group>
-      )
-    case "honey": // a row of honeycomb cells: wax walls + recessed amber pools + a drip
-      return (
-        <group>
-          {slots.map((x, i) => (
-            <group key={i} position={[x, 0, 0]} rotation={[0, Math.PI / 6, 0]}>
-              <mesh>
-                <cylinderGeometry args={[0.6, 0.6, 0.56, 6]} />
-                <meshPhysicalMaterial color="#a86a00" roughness={0.55} clearcoat={0.4} clearcoatRoughness={0.3} />
-              </mesh>
-              <mesh position={[0, -0.04, 0]}>
-                <cylinderGeometry args={[0.48, 0.48, 0.44, 6]} />
-                <LMat o={o} />
-              </mesh>
-              {i === Math.floor(slots.length / 2) && (
-                <mesh position={[0.34, -0.34, 0.14]} scale={[0.5, 1, 0.5]}>
-                  <sphereGeometry args={[0.13, 12, 10]} />
-                  <LMat o={o} />
-                </mesh>
-              )}
-            </group>
-          ))}
-        </group>
-      )
-    case "slime": // gooey stretched blob with drips + trapped bubbles
-      return (
-        <group>
-          <mesh scale={[L / 1.3, 0.75, 1.3]}>
-            <icosahedronGeometry args={[0.58, 3]} />
-            <LMat o={o} />
-          </mesh>
-          <mesh position={[L * 0.32, -0.26, 0.12]} scale={[0.5, 0.6, 0.5]}>
-            <icosahedronGeometry args={[0.3, 2]} />
-            <LMat o={o} />
-          </mesh>
-          <mesh position={[-L * 0.3, -0.28, -0.06]} scale={[0.4, 0.75, 0.4]}>
-            <icosahedronGeometry args={[0.26, 2]} />
-            <LMat o={o} />
-          </mesh>
-          <AirBubble pos={[-L * 0.12, 0.08, 0.16]} r={0.05} />
-          <AirBubble pos={[L * 0.15, -0.04, -0.1]} r={0.035} />
-        </group>
-      )
-  }
-}
-
 interface Props {
   object: ClimbObject
   word: string
   variant: Variant
   blobSlot?: number // (segmented) letter the character is on; -1 otherwise
   typedCount?: number // (segmented) letters already typed
-  marks?: Mark[] // (long) per-letter typing state for coloring
-  caret?: number // (long) caret slot in this word; -1 if not the current word
+  caret?: number // (long) caret slot in this word; -1 if not the current word — gets a gentle glow
 }
 
-/** A whole word rendered as a single climb object. */
-export default function WordObject({ object, word, variant, blobSlot = -1, typedCount = 0, marks, caret = -1 }: Props) {
+/**
+ * A whole word rendered as a climb platform. Both variants tile the detailed
+ * per-letter ObjectMesh (real keycaps, slumped jelly, honeycomb cells, …) so a
+ * word reads as a row of authentic objects. No letters are drawn on the 3D
+ * objects themselves — the typing bar carries the text.
+ */
+export default function WordObject({ object, word, variant, blobSlot = -1, typedCount = 0, caret = -1 }: Props) {
   const chars = word.split("")
   const n = chars.length
   const slot = (i: number) => (i - (n - 1) / 2) * GAP
-  const topY = object.halfHeight
+  const isKeycap = object.shape === "keycap"
 
+  // segmented: legacy per-letter jump model (kept for reference / possible reuse)
   if (variant === "segmented") {
     return (
       <group>
-        {/* keyboard base plate + RGB underglow */}
-        {object.shape === "keycap" && (
-          <>
-            <RoundedBox args={[n * GAP + 0.4, 0.24, 1.5]} radius={0.1} smoothness={4} position={[0, -0.34, 0]}>
-              <meshPhysicalMaterial color="#1c2029" roughness={0.5} clearcoat={0.3} />
-            </RoundedBox>
-            <mesh position={[0, -0.52, 0]}>
-              <boxGeometry args={[n * GAP + 0.55, 0.1, 1.65]} />
-              <meshBasicMaterial color="#7ad0ff" toneMapped={false} />
-            </mesh>
-          </>
-        )}
+        {isKeycap && <KeyboardBase n={n} />}
         {chars.map((ch, i) => (
           <group key={i} position={[slot(i), 0, 0]}>
             <LetterPiece object={object} char={ch} index={i} blobSlot={blobSlot} typedCount={typedCount} />
@@ -439,28 +213,40 @@ export default function WordObject({ object, word, variant, blobSlot = -1, typed
     )
   }
 
-  // long: one continuous platform + letters along the top, colored by typing state
+  // long: continuous walkable platform of detailed objects, one per letter, no labels
   return (
     <group>
-      <LongMesh object={object} n={n} />
-      {chars.map((ch, i) => {
-        const mark = marks?.[i] ?? 0
-        const isCaret = i === caret
-        const color = mark === 2 ? "#ff4d4d" : mark === 1 ? "#ffffff" : isCaret ? "#5ff0d0" : object.ink
+      {isKeycap && <KeyboardBase n={n} />}
+      {chars.map((_, i) => {
+        const hasCat = i === caret
         return (
-          <Text
-            key={i}
-            position={[slot(i), topY + 0.03, 0]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.42}
-            color={color}
-            anchorX="center"
-            anchorY="middle"
-          >
-            {ch}
-          </Text>
+          <group key={i} position={[slot(i), 0, 0]}>
+            <ObjectMesh object={object} glow={hasCat ? 0.42 : 0} showLetter={false} />
+            {/* the key the cat stands on lights up — RGB keyboard vibe */}
+            {isKeycap && hasCat && (
+              <mesh position={[0, -0.22, 0]}>
+                <boxGeometry args={[1.0, 0.14, 1.0]} />
+                <meshBasicMaterial color="#5ff0d0" toneMapped={false} transparent opacity={0.85} />
+              </mesh>
+            )}
+          </group>
         )
       })}
     </group>
+  )
+}
+
+/** Shared keyboard deck under a keycap word: base plate + RGB underglow strip. */
+function KeyboardBase({ n }: { n: number }) {
+  return (
+    <>
+      <RoundedBox args={[n * GAP + 0.4, 0.24, 1.5]} radius={0.1} smoothness={4} position={[0, -0.34, 0]}>
+        <meshPhysicalMaterial color="#1c2029" roughness={0.5} clearcoat={0.3} />
+      </RoundedBox>
+      <mesh position={[0, -0.52, 0]}>
+        <boxGeometry args={[n * GAP + 0.55, 0.1, 1.65]} />
+        <meshBasicMaterial color="#7ad0ff" toneMapped={false} />
+      </mesh>
+    </>
   )
 }

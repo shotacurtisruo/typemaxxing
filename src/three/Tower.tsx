@@ -5,7 +5,6 @@ import WordObject from "./WordObject"
 /** Each word of the current passage is one continuous platform on the word-spiral. */
 export default function Tower() {
   const words = useGame((s) => s.words)
-  const marks = useGame((s) => s.marks)
   const baseWord = useGame((s) => s.baseWord)
   const curWi = useGame((s) => s.wi)
   const ci = useGame((s) => s.ci)
@@ -22,7 +21,6 @@ export default function Tower() {
               object={objectFor(W + seed)}
               word={word}
               variant="long"
-              marks={marks[wi]}
               caret={wi === curWi ? ci : -1}
             />
           </group>

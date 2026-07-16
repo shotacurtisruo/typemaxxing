@@ -389,30 +389,40 @@ class AudioEngine {
     }
 
     if (sound === "honey") {
-      // honey physics: big slow bubbles in viscous fluid (Minnaert) — staggered low gloops, everything slow
-      const gloop = (at: number, f0: number, f1: number, gain: number, dur: number) => {
-        const osc = ctx.createOscillator()
-        osc.type = "sine"
-        osc.frequency.setValueAtTime(f0, at)
-        osc.frequency.exponentialRampToValueAtTime(f1, at + dur * 0.8)
-        const lp = ctx.createBiquadFilter()
-        lp.type = "lowpass"
-        lp.Q.value = 8
-        lp.frequency.setValueAtTime(350, at)
-        lp.frequency.exponentialRampToValueAtTime(750, at + dur * 0.8)
-        const g = ctx.createGain()
-        g.gain.setValueAtTime(0.0001, at)
-        g.gain.exponentialRampToValueAtTime(gain, at + 0.05)
-        g.gain.exponentialRampToValueAtTime(0.0001, at + dur)
-        osc.connect(lp).connect(g).connect(out)
-        osc.start(at)
-        osc.stop(at + dur + 0.02)
-      }
-      gloop(t, freq * 0.5, freq * 0.85, 0.2, 0.4)
-      gloop(t + 0.13, freq * 0.65, freq * 1.0, 0.12, 0.28)
-      // sticky micro-crackle as the surface pulls
-      for (const dt of [0.06, 0.16, 0.27]) {
-        this.noiseBurst(out, t + dt, { type: "lowpass", freq: 1300, gain: 0.03, decay: 0.01 })
+      // honey physics: pressing a finger INTO a thick viscous pool — a slow sticky SQUELCH,
+      // then the surface tension stringing apart as it lifts. Not bubbles: a wet compression.
+      // (1) the squish: band-limited wet noise that swells as it's pressed and slowly releases
+      const squish = ctx.createBufferSource()
+      squish.buffer = this.noiseBuf
+      squish.loop = true
+      const slp = ctx.createBiquadFilter()
+      slp.type = "lowpass"
+      slp.Q.value = 7
+      slp.frequency.setValueAtTime(260, t)
+      slp.frequency.exponentialRampToValueAtTime(900, t + 0.11) // opens as it compresses
+      slp.frequency.exponentialRampToValueAtTime(230, t + 0.44) // closes as it settles
+      const sg = ctx.createGain()
+      sg.gain.setValueAtTime(0.0001, t)
+      sg.gain.exponentialRampToValueAtTime(0.2, t + 0.06)
+      sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.46)
+      squish.connect(slp).connect(sg).connect(out)
+      squish.start(t)
+      squish.stop(t + 0.48)
+      // (2) viscous body: a heavy low sine sagging downward — thick fluid being displaced
+      const body = ctx.createOscillator()
+      body.type = "sine"
+      body.frequency.setValueAtTime(Math.max(120, freq * 0.6), t)
+      body.frequency.exponentialRampToValueAtTime(Math.max(68, freq * 0.32), t + 0.32)
+      const bg = ctx.createGain()
+      bg.gain.setValueAtTime(0.0001, t)
+      bg.gain.exponentialRampToValueAtTime(0.17, t + 0.05)
+      bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.36)
+      body.connect(bg).connect(out)
+      body.start(t)
+      body.stop(t + 0.38)
+      // (3) sticky release: honey strings pulling apart — faint high crackle ticks near the end
+      for (const dt of [0.22, 0.29, 0.36]) {
+        this.noiseBurst(out, t + dt, { type: "bandpass", freq: 2500, Q: 3, gain: 0.028, decay: 0.012 })
       }
       return
     }
