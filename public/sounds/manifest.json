@@ -3,6 +3,5 @@
   { "key": "honey", "file": "sticky_peel.mp3", "gain": 3.0, "baseFreq": 330.0, "offset": 1.48, "dur": 0.36 },
   { "key": "ice", "file": "ice_cubes.mp3", "gain": 2.5, "baseFreq": 400.0, "offset": 0.24, "dur": 0.24 },
   { "key": "snap", "file": "choc_break.mp3", "gain": 0.85, "baseFreq": 300.0, "offset": 2.96, "dur": 0.3 },
-  { "key": "squish", "file": "squish_impact.mp3", "gain": 0.9, "baseFreq": 300.0, "offset": 0.0, "dur": 0.4 },
-  { "key": "marsh", "file": "mallow_squish.mp3", "gain": 6.5, "baseFreq": 300.0, "offset": 0.85, "dur": 0.4 }
+  { "key": "squish", "file": "squish_impact.mp3", "gain": 0.9, "baseFreq": 300.0, "offset": 0.0, "dur": 0.4 }
 ]

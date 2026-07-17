@@ -284,35 +284,20 @@ function Geometry({ object, glow, seed = 0, crack = 0 }: { object: ClimbObject; 
       // top (toast level + char spots randomized per cell). Matte, squishy.
       const w = 0.84 + hash(seed * 1.3 + 0.2) * 0.24
       const d = 0.84 + hash(seed * 2.1 + 0.5) * 0.24
-      const h = 0.68 + hash(seed * 3.3 + 0.7) * 0.22
+      const h = 0.7 + hash(seed * 3.3 + 0.7) * 0.24
       const lean = (hash(seed * 4.7) * 2 - 1) * 0.05
-      const toasts = ["#e8b56a", "#d9993f", "#c07c2c", "#a5641f", "#8a4e1a"]
-      const toastCol = toasts[Math.floor(hash(seed * 5.9) * toasts.length)]
-      const bodyCy = 0.38 - h / 2
-      const nSpots = 2 + Math.floor(hash(seed * 7.3) * 3)
-      const spots = Array.from({ length: nSpots }, (_, k) => ({
-        x: (hash(seed * 8.1 + k * 2.3) * 2 - 1) * w * 0.3,
-        z: (hash(seed * 9.2 + k * 1.9) * 2 - 1) * d * 0.3,
-        r: 0.03 + hash(seed * 6.4 + k) * 0.045,
-      }))
+      const bodyCy = 0.44 - h / 2 // body top ~+0.42; the dome brings it to +0.5
       return (
         <group rotation={[0, 0, lean]}>
           {/* soft white puffy body — near-max rounding so it reads pillowy */}
           <RoundedBox args={[w, h, d]} radius={Math.min(w, h, d) * 0.49} smoothness={5} position={[0, bodyCy, 0]}>
-            <meshStandardMaterial color="#fff4ec" roughness={0.98} emissive={glow > 0 ? "#fff4ec" : "#000000"} emissiveIntensity={glow * 0.3} />
+            <meshStandardMaterial color="#fff6ef" roughness={0.98} emissive={glow > 0 ? "#fff6ef" : "#000000"} emissiveIntensity={glow * 0.3} />
           </RoundedBox>
-          {/* domed toasted crust on top (the walkable surface ~+0.5) */}
-          <mesh position={[0, 0.33, 0]} scale={[w * 0.5, 0.19, d * 0.5]}>
+          {/* soft white domed top (walkable surface ~+0.5), same colour — seamless pillow */}
+          <mesh position={[0, 0.36, 0]} scale={[w * 0.5, 0.18, d * 0.5]}>
             <sphereGeometry args={[1, 24, 16]} />
-            <meshStandardMaterial color={toastCol} roughness={0.62} emissive={glow > 0 ? toastCol : "#000000"} emissiveIntensity={glow * 0.35} />
+            <meshStandardMaterial color="#fffaf4" roughness={0.98} emissive={glow > 0 ? "#fff6ef" : "#000000"} emissiveIntensity={glow * 0.3} />
           </mesh>
-          {/* darker char spots on the toasted dome */}
-          {spots.map((sp, k) => (
-            <mesh key={k} position={[sp.x, 0.49, sp.z]} scale={[1, 0.5, 1]}>
-              <sphereGeometry args={[sp.r, 8, 6]} />
-              <meshStandardMaterial color="#4a2810" roughness={0.8} />
-            </mesh>
-          ))}
         </group>
       )
     }
