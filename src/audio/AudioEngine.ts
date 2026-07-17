@@ -449,35 +449,20 @@ class AudioEngine {
     }
 
     if (sound === "marsh") {
-      // marshmallow: a soft DRY squish — a resonant filtered-noise rub that
-      // sweeps up as the foam compresses, over a gentle low body. No wetness.
-      const src = ctx.createBufferSource()
-      src.buffer = this.noiseBuf
-      src.loop = true
-      const bp = ctx.createBiquadFilter()
-      bp.type = "bandpass"
-      bp.Q.value = 4.5
-      bp.frequency.setValueAtTime(360, t)
-      bp.frequency.exponentialRampToValueAtTime(1150, t + 0.1)
-      bp.frequency.exponentialRampToValueAtTime(520, t + 0.19)
-      const g = ctx.createGain()
-      g.gain.setValueAtTime(0.0001, t)
-      g.gain.exponentialRampToValueAtTime(0.17, t + 0.02)
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.21)
-      src.connect(bp).connect(g).connect(out)
-      src.start(t)
-      src.stop(t + 0.23)
-      // soft low foam-compression body
+      // marshmallow: a soft PUSHY compression — a muffled low "poomf" as the
+      // foam gives way. No squeak, no squish, no wetness.
+      this.noiseBurst(out, t, { type: "lowpass", freq: 420, gain: 0.13, attack: 0.025, decay: 0.17 })
       const osc = ctx.createOscillator()
       osc.type = "sine"
-      osc.frequency.value = Math.max(70, freq * 0.4)
-      const bg = ctx.createGain()
-      bg.gain.setValueAtTime(0.0001, t)
-      bg.gain.exponentialRampToValueAtTime(0.06, t + 0.03)
-      bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.16)
-      osc.connect(bg).connect(out)
+      osc.frequency.setValueAtTime(Math.max(95, freq * 0.5), t)
+      osc.frequency.exponentialRampToValueAtTime(Math.max(60, freq * 0.32), t + 0.14) // the soft give
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(0.13, t + 0.025)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2)
+      osc.connect(g).connect(out)
       osc.start(t)
-      osc.stop(t + 0.18)
+      osc.stop(t + 0.22)
       return
     }
 
