@@ -2,7 +2,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { AuthProvider } from './auth/Auth.tsx'
 
 // Dev only: browsers pause requestAnimationFrame in hidden tabs, which freezes
 // the 3D scene when previewing in an embedded/hidden pane. Fall back to a
@@ -15,8 +14,6 @@ if (import.meta.env.DEV) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <App />
   </StrictMode>,
 )

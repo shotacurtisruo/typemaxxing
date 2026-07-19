@@ -223,6 +223,25 @@ body {
 .auth-btn:hover { background: rgba(255,255,255,0.85); }
 .auth-btn.primary { background: var(--accent); color: #08251d; border-color: transparent; }
 
+.auth-user { display: flex; align-items: center; gap: 6px; }
+.auth-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(43,32,56,0.15);
+}
+.auth-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #08251d;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+}
+
 /* --- character + shop --- */
 .cz-shop { width: min(560px, 94vw); max-height: 88vh; overflow-y: auto; }
 .cz-coins { margin-left: auto; margin-right: 14px; font-family: var(--mono); font-weight: 700; color: #ffcf3a; letter-spacing: 1px; }
