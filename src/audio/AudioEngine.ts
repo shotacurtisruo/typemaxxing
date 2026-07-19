@@ -285,6 +285,30 @@ class AudioEngine {
     osc.stop(t + 0.19)
   }
 
+  /** Picking up a coin: a bright two-note chime (classic collectible blip). */
+  playCoin(pan = 0) {
+    const ctx = this.ctx
+    if (!ctx) return
+    const t = ctx.currentTime
+    const out = this.pan(pan, true)
+    const notes = [1318.5, 1975.5] // E6 → B6
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator()
+      o.type = "square"
+      o.frequency.value = f
+      const g = ctx.createGain()
+      const ts = t + i * 0.07
+      g.gain.setValueAtTime(0.0001, ts)
+      g.gain.exponentialRampToValueAtTime(0.1, ts + 0.005)
+      g.gain.exponentialRampToValueAtTime(0.0001, ts + 0.13)
+      o.connect(g).connect(out)
+      o.start(ts)
+      o.stop(ts + 0.15)
+    })
+    // a soft sparkle on top
+    this.noiseBurst(out, t + 0.02, { type: "highpass", freq: 6000, gain: 0.04, decay: 0.05 })
+  }
+
   /** A fresh crack forming in ice on landing: a brittle propagating micro-crackle. */
   playCrack(pan = 0) {
     const ctx = this.ctx

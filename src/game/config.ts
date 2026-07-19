@@ -53,6 +53,16 @@ export function panForWord(angle: number): number {
   return Math.cos(angle)
 }
 
+// Coins are deliberately RARE — roughly 1 in 14 platforms carries one — so the
+// pricier shop skins take a long climb to afford. Deterministic per world index
+// (+ run seed) so a coin sits in the same spot if you fall back and re-climb.
+export const COIN_CHANCE = 0.07
+export function coinAt(worldIndex: number, seed: number): boolean {
+  if (worldIndex < 3) return false // clean opening stretch
+  const h = Math.sin((worldIndex * 127.1 + seed * 311.7) * 0.7) * 43758.5453
+  return (h - Math.floor(h)) < COIN_CHANCE
+}
+
 /** Interpolate two "#rrggbb" colors. */
 export function hexLerp(a: string, b: string, t: number): string {
   const pa = parseInt(a.slice(1), 16)

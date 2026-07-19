@@ -219,7 +219,7 @@ export default function WordObject({ object, word, variant, blobSlot = -1, typed
   if (object.shape === "butter") {
     return (
       <group>
-        <ButterStick object={object} n={n} gap={GAP} caret={caret} crossed={crossed} />
+        <ButterStick n={n} gap={GAP} caret={caret} crossed={crossed} />
       </group>
     )
   }

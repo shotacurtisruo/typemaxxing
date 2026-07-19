@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { generatePassage } from "./passage"
-import { objectFor, weatherFor, layoutAngles, passageArc, type ClimbObject, type Weather } from "./config"
+import { objectFor, weatherFor, layoutAngles, passageArc, coinAt, type ClimbObject, type Weather } from "./config"
+import { SKINS, DEFAULT_SKIN, skinById } from "./skins"
 
 /** Per-letter state: 0 = untyped, 1 = correct, 2 = wrong (red). */
 export type Mark = 0 | 1 | 2
@@ -67,6 +68,10 @@ interface GameState {
   character: CharacterLook
   slipNonce: number // increments on every fall — visuals sequence off this
   slipAt: number
+  coins: number // total balance (persisted)
+  ownedSkins: string[] // skin ids the player owns (persisted)
+  collected: Record<number, true> // world indices whose coin was grabbed this run
+  coinNonce: number // bumps on each pickup — pickup chime/pop sequence off this
 
   reset: () => void
   press: (char: string) => PressResult | null
@@ -75,14 +80,18 @@ interface GameState {
   setMode: (m: GameMode) => void
   toggleKeycap: () => void
   setChar: (part: keyof CharacterLook, value: string) => void
+  collectCoin: (worldIndex: number) => void
+  buySkin: (id: string) => void
+  equipSkin: (id: string) => void
 }
 
 export interface CharacterLook {
+  skin: string // equipped skin id
   fur: string
   accent: string
 }
 
-const DEFAULT_CHAR: CharacterLook = { fur: "#e0561e", accent: "#5ff0d0" }
+const DEFAULT_CHAR: CharacterLook = { skin: DEFAULT_SKIN, fur: SKINS[0].fur, accent: SKINS[0].accent }
 
 function loadChar(): CharacterLook {
   try {
@@ -90,6 +99,22 @@ function loadChar(): CharacterLook {
     if (raw) return { ...DEFAULT_CHAR, ...JSON.parse(raw) }
   } catch {}
   return DEFAULT_CHAR
+}
+
+function loadCoins(): number {
+  try {
+    const raw = localStorage.getItem("thock-coins")
+    if (raw) return Math.max(0, parseInt(raw, 10) || 0)
+  } catch {}
+  return 0
+}
+
+function loadOwned(): string[] {
+  try {
+    const raw = localStorage.getItem("thock-owned-v1")
+    if (raw) return Array.from(new Set([DEFAULT_SKIN, ...JSON.parse(raw)]))
+  } catch {}
+  return [DEFAULT_SKIN]
 }
 
 const FLOW_GAIN = 0.045
@@ -133,8 +158,49 @@ export const useGame = create<GameState>((set, get) => ({
   character: loadChar(),
   slipNonce: 0,
   slipAt: 0,
+  coins: loadCoins(),
+  ownedSkins: loadOwned(),
+  collected: {},
+  coinNonce: 0,
 
   toggleKeycap: () => set((s) => ({ keycap: s.keycap === "mt3" ? "xda" : "mt3" })),
+
+  /** Grab the coin floating over `worldIndex` (once per run per platform). */
+  collectCoin: (worldIndex) =>
+    set((s) => {
+      if (s.collected[worldIndex] || !coinAt(worldIndex, s.seed)) return {}
+      const coins = s.coins + 1
+      try {
+        localStorage.setItem("thock-coins", String(coins))
+      } catch {}
+      return { coins, collected: { ...s.collected, [worldIndex]: true }, coinNonce: s.coinNonce + 1 }
+    }),
+
+  /** Buy a skin if affordable & not owned; deduct coins and unlock it. */
+  buySkin: (id) =>
+    set((s) => {
+      const skin = skinById(id)
+      if (s.ownedSkins.includes(id) || s.coins < skin.price) return {}
+      const coins = s.coins - skin.price
+      const ownedSkins = [...s.ownedSkins, id]
+      try {
+        localStorage.setItem("thock-coins", String(coins))
+        localStorage.setItem("thock-owned-v1", JSON.stringify(ownedSkins))
+      } catch {}
+      return { coins, ownedSkins }
+    }),
+
+  /** Equip an owned skin — resets fur/accent to the skin's own palette. */
+  equipSkin: (id) =>
+    set((s) => {
+      if (!s.ownedSkins.includes(id)) return {}
+      const skin = skinById(id)
+      const character: CharacterLook = { skin: id, fur: skin.fur, accent: skin.accent }
+      try {
+        localStorage.setItem("thock-char-v2", JSON.stringify(character))
+      } catch {}
+      return { character }
+    }),
 
   setChar: (part, value) =>
     set((s) => {
@@ -170,6 +236,7 @@ export const useGame = create<GameState>((set, get) => ({
       weather: weatherFor(seed),
       prevWeather: weatherFor(seed),
       weatherAt: 0,
+      collected: {},
     })
   },
 

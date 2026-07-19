@@ -7,6 +7,7 @@ import TypingBar from "./ui/TypingBar"
 import Hud from "./ui/Hud"
 import Customizer from "./ui/Customizer"
 import Results from "./ui/Results"
+import { AuthButtons } from "./auth/Auth"
 import { useGame } from "./game/store"
 import { audio } from "./audio/AudioEngine"
 import { panForWord, hexLerp } from "./game/config"
@@ -15,6 +16,7 @@ export default function App() {
   const [started, setStarted] = useState(false)
   const [customizing, setCustomizing] = useState(false)
   const weather = useGame((s) => s.weather)
+  const coins = useGame((s) => s.coins)
   const sceneRef = useRef<HTMLDivElement>(null)
 
   // Smoothly crossfade the sky gradient toward the current weather.
@@ -98,6 +100,8 @@ export default function App() {
       if (!res) return
       const gs = useGame.getState()
       const pan = panForWord(gs.angles[gs.wi] ?? 0)
+      // coins are grabbed by the cat physically passing them (see Coin.tsx),
+      // not on keystroke — so they only vanish as you go by.
       if (res.slip) {
         audio.playSlip(pan)
       } else if (res.kind === "correct" || res.kind === "jump") {
@@ -129,7 +133,14 @@ export default function App() {
       >
         <Scene />
         <div className="brand">thock</div>
-        <button className="me-btn" onClick={() => setCustomizing(true)} title="Customize character">👤</button>
+        <div className="top-right">
+          <div className="coin-chip" title="Coins — find them floating on rare platforms">
+            <span className="coin-ico">🪙</span>
+            <span className="coin-num">{coins}</span>
+          </div>
+          <button className="me-btn" onClick={() => setCustomizing(true)} title="Character & shop">👤</button>
+          <AuthButtons />
+        </div>
         {customizing && <Customizer onClose={() => setCustomizing(false)} />}
         {!started && (
           <div className="hint">

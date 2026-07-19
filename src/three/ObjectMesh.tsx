@@ -514,7 +514,7 @@ function Geometry({ object, glow, seed = 0, crack = 0 }: { object: ClimbObject; 
  * twisted paper end-folds, and random cracks scattered along its length that
  * grow in behind the cat as it climbs. A warm glow patch tracks the caret cell.
  */
-export function ButterStick({ object, n, gap, caret = -1, crossed = false }: { object: ClimbObject; n: number; gap: number; caret?: number; crossed?: boolean }) {
+export function ButterStick({ n, gap, caret = -1, crossed = false }: { n: number; gap: number; caret?: number; crossed?: boolean }) {
   const bodyRef = useRef<Mesh>(null)
   const cracksRef = useRef<Group>(null)
   const pd = useRef(0) // press/bend amount (springy)

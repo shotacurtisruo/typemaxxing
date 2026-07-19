@@ -169,11 +169,16 @@ body {
   box-shadow: -2px 0 0 var(--accent);
 }
 
-.me-btn {
+.top-right {
   position: absolute;
   top: 16px;
   right: 18px;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.me-btn {
   width: 40px;
   height: 40px;
   border-radius: 12px;
@@ -184,6 +189,76 @@ body {
   backdrop-filter: blur(6px);
 }
 .me-btn:hover { background: rgba(255,255,255,0.85); }
+
+.coin-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(43,32,56,0.15);
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(6px);
+  font-family: var(--mono);
+  font-weight: 700;
+  color: #3a2f4f;
+}
+.coin-ico { font-size: 16px; }
+.coin-num { font-size: 16px; min-width: 12px; }
+
+.auth-btn {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(43,32,56,0.15);
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(6px);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: #3a2f4f;
+  cursor: pointer;
+}
+.auth-btn:hover { background: rgba(255,255,255,0.85); }
+.auth-btn.primary { background: var(--accent); color: #08251d; border-color: transparent; }
+
+/* --- character + shop --- */
+.cz-shop { width: min(560px, 94vw); max-height: 88vh; overflow-y: auto; }
+.cz-coins { margin-left: auto; margin-right: 14px; font-family: var(--mono); font-weight: 700; color: #ffcf3a; letter-spacing: 1px; }
+.cz-shop-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 20px 0 10px; }
+.cz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.cz-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 8px 10px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1.5px solid transparent;
+}
+.cz-card.on { border-color: var(--accent); background: rgba(95,240,208,0.08); }
+.cz-card-img { width: 84px; height: 60px; object-fit: contain; image-rendering: pixelated; }
+.cz-card-name { font-family: var(--mono); font-size: 13px; color: var(--ink); font-weight: 700; }
+.cz-card-blurb { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; min-height: 24px; line-height: 1.2; }
+.cz-card-btn {
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 9px;
+  border: none;
+  background: var(--accent);
+  color: #08251d;
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+.cz-card-btn:hover:not(:disabled) { filter: brightness(1.1); }
+.cz-card-btn.buy { background: #ffcf3a; color: #3a2a00; }
+.cz-card-btn.equipped { background: rgba(255,255,255,0.12); color: var(--muted); cursor: default; }
+.cz-card-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .cz-backdrop {
   position: absolute;
