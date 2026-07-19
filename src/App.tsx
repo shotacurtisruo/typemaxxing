@@ -8,6 +8,7 @@ import Hud from "./ui/Hud"
 import Customizer from "./ui/Customizer"
 import Results from "./ui/Results"
 import { AuthButtons } from "./auth/Auth"
+import { coinURL } from "./three/Character"
 import { useGame } from "./game/store"
 import { audio } from "./audio/AudioEngine"
 import { panForWord, hexLerp } from "./game/config"
@@ -17,6 +18,20 @@ export default function App() {
   const [customizing, setCustomizing] = useState(false)
   const weather = useGame((s) => s.weather)
   const coins = useGame((s) => s.coins)
+  const coinNonce = useGame((s) => s.coinNonce)
+  const coinChip = useRef<HTMLDivElement>(null)
+
+  // pulse the coin chip on every physical pickup (frame-synced to the chime)
+  useEffect(() => {
+    if (!coinNonce) return
+    const el = coinChip.current
+    if (!el) return
+    el.classList.remove("pickup")
+    void el.offsetWidth // restart the animation
+    el.classList.add("pickup")
+    const t = setTimeout(() => el.classList.remove("pickup"), 650)
+    return () => clearTimeout(t)
+  }, [coinNonce])
   const sceneRef = useRef<HTMLDivElement>(null)
 
   // Smoothly crossfade the sky gradient toward the current weather.
@@ -134,8 +149,8 @@ export default function App() {
         <Scene />
         <div className="brand">typemaxxing</div>
         <div className="top-right">
-          <div className="coin-chip" title="Coins — find them floating on rare platforms">
-            <span className="coin-ico">🪙</span>
+          <div className="coin-chip tactile" ref={coinChip} title="Coins — find them floating on rare platforms">
+            <img className="coin-px coin-ico" src={coinURL()} alt="coins" draggable={false} />
             <span className="coin-num">{coins}</span>
           </div>
           <button className="me-btn" onClick={() => setCustomizing(true)} title="Character & shop">👤</button>
