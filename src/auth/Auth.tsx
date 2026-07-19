@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth"
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore"
 import { auth, db, googleProvider, firebaseEnabled } from "../firebase"
+import { PixelSprite } from "../three/Character"
 import { useGame, type CharacterLook } from "../game/store"
 
 function useAuthUser(): User | null {
@@ -74,30 +75,46 @@ function useCloudSync(user: User | null) {
 export function AuthButtons() {
   const user = useAuthUser()
   useCloudSync(user)
+  const character = useGame((s) => s.character)
+
+  // one-second cutscene when you first sign in (null -> user): welcome ring + climber peek
+  const [celebrate, setCelebrate] = useState(false)
+  const prevUser = useRef<User | null>(null)
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined
+    if (!prevUser.current && user) {
+      setCelebrate(true)
+      t = setTimeout(() => setCelebrate(false), 1150)
+    }
+    prevUser.current = user
+    return () => clearTimeout(t)
+  }, [user])
 
   if (!firebaseEnabled || !auth) return null
 
   if (!user) {
     return (
       <button
-        className="auth-btn primary"
+        className="auth-btn primary tactile"
         onClick={() => void signInWithPopup(auth!, googleProvider)}
         title="Sign in with Google — saves your coins & skins across devices"
       >
-        sign in
+        <span>sign in</span>
       </button>
     )
   }
 
   const first = user.displayName?.split(" ")[0] ?? "you"
+  const welcome = celebrate ? " welcome" : ""
   return (
     <div className="auth-user" title={user.email ?? undefined}>
+      {celebrate && <PixelSprite look={character} className="auth-peek" />}
       {user.photoURL ? (
-        <img className="auth-avatar" src={user.photoURL} alt="" referrerPolicy="no-referrer" />
+        <img className={`auth-avatar${welcome}`} src={user.photoURL} alt="" referrerPolicy="no-referrer" />
       ) : (
-        <span className="auth-avatar auth-avatar-fallback">{first[0]?.toUpperCase()}</span>
+        <span className={`auth-avatar auth-avatar-fallback${welcome}`}>{first[0]?.toUpperCase()}</span>
       )}
-      <button className="auth-btn" onClick={() => void signOut(auth!)} title="Sign out">out</button>
+      <button className="auth-btn auth-out tactile" onClick={() => void signOut(auth!)} title="Sign out">out</button>
     </div>
   )
 }

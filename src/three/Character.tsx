@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useFrame } from "@react-three/fiber"
 import { CanvasTexture, DoubleSide, MathUtils, NearestFilter, Vector3, type Group, type Mesh, type MeshBasicMaterial } from "three"
 import { useGame, wpm, type CharacterLook } from "../game/store"
@@ -271,6 +271,62 @@ export function catPreviewURL(look: CharacterLook): string {
 /** Idle preview for a specific skin id (used by the shop grid). */
 export function skinPreviewURL(skinId: string): string {
   return drawCatFrame({ skin: skinId, fur: "", accent: "" }, "idle0").toDataURL()
+}
+
+// ---------- diegetic pixel coin (same art pipeline as the animals) ----------
+// The HUD/shop money is the same pixel-art as the 3D coin, not an emoji.
+function drawCoinFrame(): HTMLCanvasElement {
+  const N = 9
+  const S = 3
+  const c = document.createElement("canvas")
+  c.width = N * S
+  c.height = N * S
+  const ctx = c.getContext("2d")!
+  ctx.imageSmoothingEnabled = false
+  const put = (color: string, x: number, y: number) => {
+    ctx.fillStyle = color
+    ctx.fillRect(x * S, y * S, S, S)
+  }
+  const RIM = "#c8961e", FACE = "#ffcf3a", HI = "#ffe08a", STAR = "#e79a15", SPARK = "#fff6d0"
+  const cx = (N - 1) / 2
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const d = Math.hypot(x - cx, y - cx)
+      if (d > 4.3) continue
+      put(d >= 3.3 ? RIM : FACE, x, y)
+    }
+  }
+  // embossed star (matches the 3D coin's star)
+  for (const [x, y] of [[4, 3], [3, 4], [4, 4], [5, 4], [4, 5]] as const) put(STAR, x, y)
+  // top-left highlight + a spark
+  for (const [x, y] of [[2, 2], [3, 2], [2, 3]] as const) put(HI, x, y)
+  put(SPARK, 6, 2)
+  return c
+}
+
+let _coinURL: string | null = null
+/** Cached data-URL of the pixel coin — render at 18px with image-rendering:pixelated. */
+export function coinURL(): string {
+  if (!_coinURL) _coinURL = drawCoinFrame().toDataURL()
+  return _coinURL
+}
+
+/**
+ * The pixel climber, out of the 3D scene and into the chrome: crossfades the
+ * idle0/idle1 frames (like the in-game idle) for a given look. Used as the auth
+ * avatar peek and the shop diorama occupant.
+ */
+export function PixelSprite({ look, className, fps = 1.8 }: { look: CharacterLook; className?: string; fps?: number }) {
+  const [frame, setFrame] = useState(0)
+  const urls = useMemo(
+    () => [drawCatFrame(look, "idle0").toDataURL(), drawCatFrame(look, "idle1").toDataURL()],
+    [look.skin, look.fur, look.accent]
+  )
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => 1 - f), 1000 / fps)
+    return () => clearInterval(id)
+  }, [fps])
+  return <img className={className} src={urls[frame]} alt="" draggable={false} style={{ imageRendering: "pixelated" }} />
 }
 
 const POSES: CatPose[] = ["idle0", "idle1", "walk0", "walk1", "walk2", "walk3", "run0", "run1", "run2", "run3", "air"]
