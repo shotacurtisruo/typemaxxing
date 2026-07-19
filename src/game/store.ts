@@ -83,6 +83,7 @@ interface GameState {
   collectCoin: (worldIndex: number) => void
   buySkin: (id: string) => void
   equipSkin: (id: string) => void
+  applyCloud: (data: { coins: number; ownedSkins: string[]; character: CharacterLook }) => void
 }
 
 export interface CharacterLook {
@@ -189,6 +190,16 @@ export const useGame = create<GameState>((set, get) => ({
       } catch {}
       return { coins, ownedSkins }
     }),
+
+  /** Overwrite local progress with the merged cloud snapshot (on sign-in). */
+  applyCloud: ({ coins, ownedSkins, character }) => {
+    try {
+      localStorage.setItem("thock-coins", String(coins))
+      localStorage.setItem("thock-owned-v1", JSON.stringify(ownedSkins))
+      localStorage.setItem("thock-char-v2", JSON.stringify(character))
+    } catch {}
+    set({ coins, ownedSkins, character })
+  },
 
   /** Equip an owned skin — resets fur/accent to the skin's own palette. */
   equipSkin: (id) =>
