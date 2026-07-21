@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { useFrame } from "@react-three/fiber"
-import { CanvasTexture, DoubleSide, MathUtils, NearestFilter, Vector3, type Group, type Mesh, type MeshBasicMaterial } from "three"
+import { CanvasTexture, DoubleSide, MathUtils, NearestFilter, Vector3, type Camera, type Group, type Mesh, type MeshBasicMaterial } from "three"
 import { useGame, wpm, type CharacterLook } from "../game/store"
-import { skinById } from "../game/skins"
+import { skinById, isModel, type AnimState, type CharacterDef, type ModelSpec } from "../game/skins"
 import { objectFor, slotWorldPos, panForWord } from "../game/config"
 import { audio } from "../audio/AudioEngine"
 import { charWorldPos, shake } from "./sceneBus"
+import { useCharacterModel } from "./useCharacterModel"
 
 const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
 
@@ -350,13 +351,26 @@ const RUN_WPM = 45 // at/above this, the legs gallop
 
 type Mode = "move" | "stagger" | "drop" | "recover"
 
-/** The pixel cat: walks/runs across word platforms as you type, jumps on space, falls on red pileups. */
-export default function Character() {
-  const look = useGame((s) => s.character)
-  const textures = useMemo(() => makeTextures(look), [look.skin, look.fur, look.accent])
+/** Per-frame output of the controller — the active renderer (sprite or model)
+ *  turns this into a visual. Position is written straight to the root group. */
+export interface PoseOut {
+  spritePose: CatPose // exact sprite frame (sprite renderer only)
+  animState: AnimState // logical clip state (model renderer only)
+  facing: number // +1 / -1 travel direction relative to camera-right
+  tumbleZ: number // roll of the body during stagger/fall
+  moving: boolean
+  falling: boolean
+}
 
-  const root = useRef<Group>(null)
-  const plane = useRef<Mesh>(null)
+type StepFn = (dt: number, camera: Camera) => PoseOut
+
+/**
+ * The movement/physics brain. Owns all motion state, advances it each frame,
+ * writes `root.position`, and returns a renderer-agnostic pose. This is the
+ * single source of truth for gameplay — it never touches a mesh, so the visual
+ * (2D sprite or 3D model) is fully decoupled and interchangeable.
+ */
+function useCharacterController(root: RefObject<Group | null>): StepFn {
   const from = useRef(new Vector3())
   const to = useRef(new Vector3())
   const goal = useRef(new Vector3())
@@ -369,17 +383,18 @@ export default function Character() {
   const spin = useRef(0)
   const anim = useRef(0)
   const facing = useRef(1)
+  const roll = useRef(0) // body roll (was plane.rotation.z)
   const goalW = useRef(-1)
   const lastSlip = useRef(useGame.getState().slipNonce)
   const inited = useRef(false)
   const camRight = useRef(new Vector3())
-  const sinkY = useRef(0) // how far the cat has settled into slime (springy)
+  const sinkY = useRef(0) // how far the character has settled into slime (springy)
   const sinkV = useRef(0)
+  const last = useRef<PoseOut>({ spritePose: "idle0", animState: "idle", facing: 1, tumbleZ: 0, moving: false, falling: false })
 
-  useFrame(({ camera }, dt) => {
+  return useCallback((dt, camera) => {
     const g = root.current
-    const p = plane.current
-    if (!g || !p) return
+    if (!g) return last.current
     const st = useGame.getState()
     const { baseWord, wi, ci, words } = st
     const W = baseWord + wi
@@ -389,7 +404,7 @@ export default function Character() {
     const [gx, gy, gz] = slotWorldPos(angle, W, s, len)
     const obj = objectFor(W + st.seed)
     const onSlime = obj.shape === "slime"
-    // how far a soft surface gives under the cat (matches the bar's own dent/bend)
+    // how far a soft surface gives under the character (matches the bar's own dent/bend)
     const softDepth = onSlime ? 0.2 : obj.shape === "butter" ? 0.07 : 0
     goal.current.set(gx, gy + obj.halfHeight, gz)
 
@@ -438,7 +453,7 @@ export default function Character() {
 
     if (mode.current === "stagger") {
       g.position.copy(from.current)
-      p.rotation.z = Math.sin(tt * 26) * 0.22 * (1 - tt * 0.5)
+      roll.current = Math.sin(tt * 26) * 0.22 * (1 - tt * 0.5)
       if (tt >= 1) {
         mode.current = "drop"
         t.current = 0
@@ -468,40 +483,37 @@ export default function Character() {
       if (tt >= 1) {
         mode.current = "move"
         to.current.copy(goal.current)
-        p.rotation.z = 0
+        roll.current = 0
       }
     } else {
       const e = smoother(tt)
       g.position.lerpVectors(from.current, to.current, e)
       if (jumping.current) g.position.y += Math.sin(Math.PI * tt) * arc.current
       spin.current = MathUtils.damp(spin.current, 0, 10, dt)
-      p.rotation.z = MathUtils.damp(p.rotation.z, 0, 8, dt)
+      roll.current = MathUtils.damp(roll.current, 0, 8, dt)
     }
 
-    // ---- sprite animation ----
+    // ---- pose selection (sprite frame + logical anim state) ----
     const falling = mode.current !== "move"
     const moving = !falling && tt < 1
     const speed = wpm(st)
-    let pose: CatPose
+    let spritePose: CatPose
+    let animState: AnimState
     if (falling || (moving && jumping.current)) {
-      pose = "air"
+      spritePose = "air"
+      animState = mode.current === "recover" ? "land" : moving && jumping.current ? "jump" : "fall"
     } else if (moving) {
       const running = speed >= RUN_WPM
       anim.current += dt * (running ? 13 : 8)
-      pose = `${running ? "run" : "walk"}${Math.floor(anim.current) % 4}` as CatPose
+      spritePose = `${running ? "run" : "walk"}${Math.floor(anim.current) % 4}` as CatPose
+      animState = running ? "run" : "walk"
     } else {
       anim.current += dt * 1.6
-      pose = `idle${Math.floor(anim.current) % 2}` as CatPose
-    }
-    const mat = p.material as MeshBasicMaterial
-    if (mat.map !== textures[pose]) {
-      mat.map = textures[pose]
-      mat.needsUpdate = true
+      spritePose = `idle${Math.floor(anim.current) % 2}` as CatPose
+      animState = "idle"
     }
 
-    // ---- billboard + facing flip ----
-    p.rotation.y = 0
-    g.rotation.y = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z)
+    // ---- facing (relative to camera-right, so left/right reads on the spiral) ----
     if (moving || falling) {
       camRight.current.set(1, 0, 0).applyQuaternion(camera.quaternion)
       const vx = to.current.x - from.current.x
@@ -509,12 +521,11 @@ export default function Character() {
       const d = vx * camRight.current.x + vz * camRight.current.z
       if (Math.abs(d) > 0.05) facing.current = d >= 0 ? 1 : -1
     }
-    p.scale.set(SPRITE_W * facing.current, SPRITE_H, 1)
-    if (falling && mode.current === "drop") p.rotation.z = spin.current * facing.current
+    const tumbleZ = falling && mode.current === "drop" ? spin.current * facing.current : roll.current
 
-    // rest into a soft surface: the cat descends by however much the surface gives
-    // beneath it (goo dents, butter bends) — the SAME spring the bar uses — so the
-    // bar's give carries the cat down. Eases back out as it steps off.
+    // rest into a soft surface: the character descends by however much the surface
+    // gives beneath it (goo dents, butter bends) — the SAME spring the bar uses —
+    // so the bar's give carries it down. Eases back out as it steps off.
     const airborne = jumping.current && tt < 1 // mid-hop between words
     const grounded = softDepth > 0 && mode.current === "move" && !airborne
     const sinkTarget = grounded ? softDepth : 0
@@ -527,14 +538,101 @@ export default function Character() {
     }
 
     charWorldPos.copy(g.position)
+    last.current = { spritePose, animState, facing: facing.current, tumbleZ, moving, falling }
+    return last.current
+  }, [root])
+}
+
+/** Billboarded pixel-sprite renderer — the original look. Reads the controller
+ *  each frame and paints the matching frame onto a camera-facing plane. */
+function SpriteRenderer({ look, step, root }: { look: CharacterLook; step: StepFn; root: RefObject<Group | null> }) {
+  const textures = useMemo(() => makeTextures(look), [look.skin, look.fur, look.accent])
+  const plane = useRef<Mesh>(null)
+
+  useFrame(({ camera }, dt) => {
+    const g = root.current
+    const p = plane.current
+    if (!g || !p) return
+    const pose = step(dt, camera)
+    // billboard toward camera + facing flip
+    p.rotation.y = 0
+    g.rotation.y = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z)
+    p.scale.set(SPRITE_W * pose.facing, SPRITE_H, 1)
+    p.rotation.z = pose.tumbleZ
+    const mat = p.material as MeshBasicMaterial
+    if (mat.map !== textures[pose.spritePose]) {
+      mat.map = textures[pose.spritePose]
+      mat.needsUpdate = true
+    }
   })
 
   return (
+    <mesh ref={plane} position={[0, SPRITE_H / 2, 0]}>
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial map={textures.idle0} transparent alphaTest={0.05} side={DoubleSide} toneMapped={false} />
+    </mesh>
+  )
+}
+
+/** 3D GLB renderer. Drives the mixer from the controller's logical anim state
+ *  and yaws the model to face travel direction. Suspends while the GLB loads;
+ *  a load/clip failure is caught by ModelFallbackBoundary → SpriteRenderer. */
+function ModelRenderer({ def, step, root }: { def: CharacterDef & { model: ModelSpec }; step: StepFn; root: RefObject<Group | null> }) {
+  const { scene, play } = useCharacterModel(def.model)
+
+  useFrame(({ camera }, dt) => {
+    const g = root.current
+    if (!g) return
+    const pose = step(dt, camera)
+    play(pose.animState)
+    // face travel direction. `facing` is signed relative to camera-right, so a
+    // camera-facing yaw plus a half-turn on flip keeps the model reading L/R on
+    // the spiral. (Tuned against the first real asset in Phase 5.)
+    const toCam = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z)
+    g.rotation.y = toCam + (pose.facing >= 0 ? 0 : Math.PI)
+    g.rotation.z = pose.tumbleZ
+  })
+
+  const m = def.model
+  return <primitive object={scene} scale={m.scale} position={m.offset} rotation={m.rotation} />
+}
+
+/** If a character model throws (bad GLB, missing file, decode error), fall back
+ *  to the pixel sprite so the game never shows an empty plane. */
+class ModelFallbackBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  componentDidCatch(err: unknown) {
+    if (import.meta.env.DEV) console.warn("[character] model failed to load — using sprite fallback", err)
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
+
+/** The player character: one movement controller, one of two interchangeable
+ *  renderers chosen by the equipped character's `kind`. Sprite and model
+ *  characters coexist; a model that fails to load degrades to the sprite. */
+export default function Character() {
+  const look = useGame((s) => s.character)
+  const def = skinById(look.skin)
+  const root = useRef<Group>(null)
+  const step = useCharacterController(root)
+  const sprite = <SpriteRenderer look={look} step={step} root={root} />
+
+  return (
     <group ref={root}>
-      <mesh ref={plane} position={[0, SPRITE_H / 2, 0]}>
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={textures.idle0} transparent alphaTest={0.05} side={DoubleSide} toneMapped={false} />
-      </mesh>
+      {isModel(def) ? (
+        <ModelFallbackBoundary fallback={sprite}>
+          <Suspense fallback={sprite}>
+            <ModelRenderer key={def.id} def={def} step={step} root={root} />
+          </Suspense>
+        </ModelFallbackBoundary>
+      ) : (
+        sprite
+      )}
     </group>
   )
 }

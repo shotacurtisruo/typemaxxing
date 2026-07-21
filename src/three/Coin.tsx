@@ -27,8 +27,12 @@ const STAR_GEO = new ExtrudeGeometry(makeStar(0.15, 0.065), {
   bevelSegments: 1,
 })
 
-const R = 0.85 // how close (world units) the cat must get to grab it
+const R = 0.85 // how close (world units, horizontal) the cat must get to grab it
 const R2 = R * R
+// The tower is a spiral (~5–6 words per revolution), so coins a full turn above
+// or below share almost the same x,z. Gate on height too, or the cat would grab
+// every coin in its angular column at once — collecting ones it never passes.
+const R_Y = 1.8 // max vertical gap; own coin sits ~1.0 above the cat, next turn ~5+ away
 
 /**
  * A rare gold coin floating above a platform. It spins + bobs while waiting, and
@@ -67,7 +71,7 @@ export default function Coin({ position, worldIndex, pan, collected }: { positio
       g.getWorldPosition(world)
       const dx = world.x - charWorldPos.x
       const dz = world.z - charWorldPos.z
-      if (dx * dx + dz * dz < R2) {
+      if (dx * dx + dz * dz < R2 && Math.abs(world.y - charWorldPos.y) < R_Y) {
         grabbed.current = true
         collectCoin(worldIndex)
         audio.playCoin(pan)

@@ -84,6 +84,7 @@ interface GameState {
   buySkin: (id: string) => void
   equipSkin: (id: string) => void
   applyCloud: (data: { coins: number; ownedSkins: string[]; character: CharacterLook }) => void
+  resetProgress: () => void
 }
 
 export interface CharacterLook {
@@ -200,11 +201,12 @@ export const useGame = create<GameState>((set, get) => ({
       return { coins, collected: { ...s.collected, [worldIndex]: true }, coinNonce: s.coinNonce + 1 }
     }),
 
-  /** Buy a skin if affordable & not owned; deduct coins and unlock it. */
+  /** Buy a skin if enabled, affordable & not owned; deduct coins and unlock it. */
   buySkin: (id) =>
     set((s) => {
       const skin = skinById(id)
-      if (s.ownedSkins.includes(id) || s.coins < skin.price) return {}
+      // reject: disabled/WIP, already owned (no dup charge), or can't afford
+      if (skin.enabled === false || s.ownedSkins.includes(id) || s.coins < skin.price) return {}
       const coins = s.coins - skin.price
       const ownedSkins = [...s.ownedSkins, id]
       try {
@@ -224,11 +226,22 @@ export const useGame = create<GameState>((set, get) => ({
     set({ coins, ownedSkins, character })
   },
 
-  /** Equip an owned skin — resets fur/accent to the skin's own palette. */
+  /** Sign-out: drop back to a clean guest profile so one account's balance
+   *  never carries over into the next (or leaks up into their cloud doc). */
+  resetProgress: () => {
+    try {
+      localStorage.removeItem("thock-coins")
+      localStorage.removeItem("thock-owned-v1")
+      localStorage.removeItem("thock-char-v2")
+    } catch {}
+    set({ coins: 0, ownedSkins: [DEFAULT_SKIN], character: DEFAULT_CHAR })
+  },
+
+  /** Equip an owned, enabled skin — resets fur/accent to the skin's own palette. */
   equipSkin: (id) =>
     set((s) => {
-      if (!s.ownedSkins.includes(id)) return {}
       const skin = skinById(id)
+      if (!s.ownedSkins.includes(id) || skin.enabled === false) return {}
       const character: CharacterLook = { skin: id, fur: skin.fur, accent: skin.accent }
       try {
         localStorage.setItem("thock-char-v2", JSON.stringify(character))

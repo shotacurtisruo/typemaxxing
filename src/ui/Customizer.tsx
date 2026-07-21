@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react"
 import { useGame, type CharacterLook } from "../game/store"
-import { SKINS, skinById } from "../game/skins"
+import { catalog, skinById, isModel, type CharacterDef } from "../game/skins"
 import { PixelSprite, skinPreviewURL, coinURL } from "../three/Character"
 import { burstFrom, flyCoins, countTween } from "./fx"
 
 const FURS = ["#e0561e", "#eaa33b", "#9aa1ab", "#f2a3c0", "#8fd8b8", "#b6a3e8"]
 const ACCENTS = ["#5ff0d0", "#ff7eb0", "#7db4ff", "#ffcf5e", "#e05050", "#f5f2ff"]
+
+/** Shop thumbnail: a 3D character's pre-rendered image if it has one, otherwise
+ *  the pixel preview (always available — also the guaranteed sprite fallback). */
+function cardThumb(def: CharacterDef): string {
+  if (isModel(def) && def.model.thumb) return def.model.thumb
+  return skinPreviewURL(def.id)
+}
 
 /** restart a one-shot CSS animation class (remove → reflow → add → clean up) */
 function restart(el: HTMLElement | null, cls: string, ms = 700) {
@@ -112,7 +119,7 @@ export default function Customizer({ onClose }: { onClose: () => void }) {
 
         <div className="cz-shop-label">skins</div>
         <div className="cz-grid">
-          {SKINS.map((skin, idx) => {
+          {catalog().map((skin, idx) => {
             const isOwned = owned.includes(skin.id)
             const isOn = character.skin === skin.id
             const canAfford = coins >= skin.price
@@ -123,7 +130,16 @@ export default function Customizer({ onClose }: { onClose: () => void }) {
                 className={`cz-card sheen ${isOn ? "on" : ""} ${affordable ? "affordable" : "locked"}`}
                 style={{ "--i": idx } as CSSProperties}
               >
-                <img className="cz-card-img" src={skinPreviewURL(skin.id)} alt={skin.name} draggable={false} />
+                {skin.kind === "model" && <span className="cz-tag cz-tag-3d">3D</span>}
+                {skin.rarity && skin.rarity !== "common" && (
+                  <span className={`cz-tag cz-rarity ${skin.rarity}`}>{skin.rarity}</span>
+                )}
+                <img
+                  className={`cz-card-img ${isModel(skin) && skin.model.thumb ? "smooth" : ""}`}
+                  src={cardThumb(skin)}
+                  alt={skin.name}
+                  draggable={false}
+                />
                 <div className="cz-card-name">{skin.name}</div>
                 <div className="cz-card-blurb">{skin.blurb}</div>
                 {isOwned ? (

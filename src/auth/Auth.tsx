@@ -20,10 +20,19 @@ interface CloudDoc {
   character?: CharacterLook
 }
 
-/** On sign-in: merge cloud + local progress, then keep the cloud in sync. */
+/** On sign-in: merge cloud + local progress, then keep the cloud in sync.
+ *  On sign-out: wipe back to a guest profile so the account's balance doesn't
+ *  linger (and can't leak into the next account's merge). */
 function useCloudSync(user: User | null) {
+  const wasSignedIn = useRef(false)
   useEffect(() => {
-    if (!user || !db) return
+    if (!user) {
+      if (wasSignedIn.current) useGame.getState().resetProgress()
+      wasSignedIn.current = false
+      return
+    }
+    wasSignedIn.current = true
+    if (!db) return
     let cancelled = false
     const ref = doc(db, "players", user.uid)
 

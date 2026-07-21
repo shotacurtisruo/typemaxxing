@@ -536,7 +536,26 @@ body {
   0% { box-shadow: 0 0 0 0 rgba(95,240,208,0.6); }
   100% { box-shadow: 0 0 0 14px transparent; }
 }
+.cz-tag {
+  position: absolute;
+  top: 6px;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  line-height: 1;
+  pointer-events: none;
+}
+.cz-tag-3d { left: 6px; background: rgba(125,180,255,0.9); color: #08182e; }
+.cz-rarity { right: 6px; }
+.cz-rarity.rare { background: rgba(125,180,255,0.22); color: #7db4ff; }
+.cz-rarity.epic { background: rgba(182,163,232,0.24); color: #c3b0f0; }
+.cz-rarity.legendary { background: rgba(255,207,94,0.24); color: #ffcf5e; }
 .cz-card-img { width: 84px; height: 60px; object-fit: contain; image-rendering: pixelated; }
+.cz-card-img.smooth { image-rendering: auto; }
 .cz-card-name { font-family: var(--mono); font-size: 13px; color: var(--ink); font-weight: 700; }
 .cz-card-blurb { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; min-height: 24px; line-height: 1.2; }
 .cz-card-btn {
