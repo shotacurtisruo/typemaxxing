@@ -1,8 +1,9 @@
 import { act, createElement, useRef, useState } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import Dialog from "./Dialog"
 import TypingInput from "./TypingInput"
+import { useGame } from "../game/store"
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null
@@ -124,5 +125,40 @@ describe("Dialog focus management", () => {
     act(() => backdrop.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })))
     expect(document.activeElement).toBe(gameplay)
     gameplay.remove()
+  })
+
+  it("recovers a lost-focus typing key even when audio is unavailable", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    useGame.getState().newRun()
+    host = document.createElement("div")
+    document.body.appendChild(host)
+    root = createRoot(host)
+
+    function Harness() {
+      const inputRef = useRef<HTMLTextAreaElement>(null)
+      return createElement(
+        "div",
+        null,
+        createElement("button", { type: "button" }, "toolbar"),
+        createElement(TypingInput, { inputRef, suppressed: false, onStarted: () => undefined }),
+      )
+    }
+
+    await act(async () => {
+      root?.render(createElement(Harness))
+      await new Promise(requestAnimationFrame)
+    })
+    const toolbar = host.querySelector<HTMLButtonElement>("button")!
+    const input = host.querySelector<HTMLTextAreaElement>("textarea")!
+    const before = useGame.getState().ci
+    const key = useGame.getState().words[0][before]
+
+    act(() => {
+      toolbar.focus()
+      toolbar.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))
+    })
+
+    expect(document.activeElement).toBe(input)
+    expect(useGame.getState().ci).toBe(before + 1)
   })
 })

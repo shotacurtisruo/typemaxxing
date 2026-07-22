@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { useGame } from "../game/store"
 import { audio } from "../audio/AudioEngine"
 import { panForWord } from "../game/config"
@@ -21,23 +21,29 @@ export default function TypingInput({
   const composing = useRef(false)
   const [focused, setFocused] = useState(false)
 
-  const handleChar = (char: string) => {
-    audio.start()
+  const handleChar = useCallback((char: string) => {
+    // Gameplay must never depend on Web Audio support or permission. Record the
+    // key first, then treat sound as a best-effort enhancement.
     onStarted()
     const res = useGame.getState().press(char)
     if (!res) return
-    const gs = useGame.getState()
-    const pan = panForWord(gs.angles[gs.wi] ?? 0)
-    if (res.slip) {
-      audio.playSlip(pan)
-    } else if (res.kind === "correct" || res.kind === "jump") {
-      const pitch = res.worldIndex * 4 + res.slot
-      if (res.object.shape === "keycap") audio.playKeycap(gs.keycap, pitch, pan, res.flow)
-      else audio.playKey(pitch, pan, res.object.sound, res.object.impact, res.flow)
-    } else if (res.kind === "error") {
-      audio.playDud(pan)
+    try {
+      audio.start()
+      const gs = useGame.getState()
+      const pan = panForWord(gs.angles[gs.wi] ?? 0)
+      if (res.slip) {
+        audio.playSlip(pan)
+      } else if (res.kind === "correct" || res.kind === "jump") {
+        const pitch = res.worldIndex * 4 + res.slot
+        if (res.object.shape === "keycap") audio.playKeycap(gs.keycap, pitch, pan, res.flow)
+        else audio.playKey(pitch, pan, res.object.sound, res.object.impact, res.flow)
+      } else if (res.kind === "error") {
+        audio.playDud(pan)
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn("[typing] audio unavailable; continuing silently", err)
     }
-  }
+  }, [onStarted])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (suppressed || composing.current) return // never process gameplay behind a dialog
@@ -98,6 +104,33 @@ export default function TypingInput({
     return () => cancelAnimationFrame(frame)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suppressed])
+
+  // Last-resort keyboard recovery: if a browser leaves focus on the page or a
+  // toolbar button, the first ordinary typing key focuses the gameplay input
+  // and is still processed. Tab/Enter and Space on controls remain accessible.
+  useEffect(() => {
+    if (suppressed) return
+    const el = inputRef.current
+    if (!el) return
+    const recover = (e: KeyboardEvent) => {
+      if (document.activeElement === el || e.defaultPrevented || composing.current) return
+      if (e.metaKey || e.ctrlKey || e.altKey || e.key === "Tab" || e.key === "Escape" || e.key === "Enter") return
+      const active = document.activeElement as HTMLElement | null
+      if (e.key === " " && active?.matches("button, a, input, select, textarea")) return
+
+      if (e.key === "Backspace") {
+        e.preventDefault()
+        el.focus({ preventScroll: true })
+        useGame.getState().backspace()
+      } else if (e.key.length === 1) {
+        e.preventDefault()
+        el.focus({ preventScroll: true })
+        handleChar(e.key)
+      }
+    }
+    document.addEventListener("keydown", recover, true)
+    return () => document.removeEventListener("keydown", recover, true)
+  }, [handleChar, inputRef, suppressed])
 
   return (
     <>
