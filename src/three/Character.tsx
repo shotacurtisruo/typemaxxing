@@ -1,12 +1,11 @@
-import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useFrame } from "@react-three/fiber"
 import { CanvasTexture, DoubleSide, MathUtils, NearestFilter, Vector3, type Camera, type Group, type Mesh, type MeshBasicMaterial } from "three"
 import { useGame, wpm, type CharacterLook } from "../game/store"
-import { skinById, isModel, type AnimState, type CharacterDef, type ModelSpec } from "../game/skins"
+import { skinById } from "../game/skins"
 import { objectFor, slotWorldPos, panForWord } from "../game/config"
 import { audio } from "../audio/AudioEngine"
 import { charWorldPos, shake } from "./sceneBus"
-import { useCharacterModel } from "./useCharacterModel"
 
 const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
 
@@ -54,7 +53,7 @@ function quadLegs(px: PxFn, P: Palette, bodyX: number, bodyW: number, bodyY: num
   leg(backX, bf, far); leg(frontX, ff, far); leg(backX, bn, near); leg(frontX, fn, near)
 }
 
-interface QuadOpts { ear: "cat" | "fox" | "round"; earColor: string; earTip?: string; tail: "thin" | "bushy" | "stub"; tailTip?: string; leg: string; legDark: string; foot: string; socks?: boolean; eyePatch?: boolean; muzzle?: boolean }
+interface QuadOpts { ear: "cat" | "fox" | "round"; earColor: string; earTip?: string; tail: "thin" | "bushy" | "stub"; tailTip?: string; leg: string; legDark: string; foot: string; socks?: boolean; muzzle?: boolean }
 
 // A cat-shaped quadruped, parameterized so cat/fox/panda share the skeleton
 // (trot, gallop, jump) but read as clearly different animals.
@@ -82,13 +81,11 @@ function drawQuad(px: PxFn, clr: ClrFn, P: Palette, pi: Pose, o: QuadOpts) {
     px(P.belly, 15, 10, 4, 7)
     px(P.fur, 15, 1, 9, 7); clr(15, 1); clr(23, 1); clr(15, 7); clr(23, 7)
     ears(15, 1)
-    if (o.eyePatch) { px(P.pat, 19, 2, 3, 4) }
     if (o.muzzle) px(P.belly, 21, 4, 3, 3)
     px(P.ink, 21, 3, 1, 2)
     px(P.pink, 23, 5, 1, 1)
     px(P.pink, 20, 6, 1, 1)
     px(P.belly, 24, 4, 1, 1); px(P.belly, 24, 6, 1, 1)
-    px(P.accent, 15, 8, 8, 2)
     px(o.leg, 16, 12, 2, 7)
     px(o.socks ? P.pat : o.foot, 16, 17, 2, 2)
     // tail
@@ -118,13 +115,11 @@ function drawQuad(px: PxFn, clr: ClrFn, P: Palette, pi: Pose, o: QuadOpts) {
   const headY = bodyY - 5 + (pi.run ? 1 : 0)
   px(P.fur, headX, headY, 9, 8); clr(headX, headY); clr(headX + 8, headY); clr(headX, headY + 7); clr(headX + 8, headY + 7)
   ears(headX, headY)
-  if (o.eyePatch) px(P.pat, headX + 4, headY + 2, 3, 4)
   if (o.muzzle) px(P.belly, headX + 4, headY + 4, 4, 3)
   px(P.ink, headX + 6, headY + 3, 1, 2)
   px(P.pink, headX + 8, headY + 5, 1, 1)
   px(P.pink, headX + 5, headY + 6, 1, 1)
   px(P.belly, headX + 9, headY + 4, 1, 1); px(P.belly, headX + 9, headY + 6, 1, 1)
-  px(P.accent, headX - 2, bodyY, 3, 3)
   quadLegs(px, P, bodyX, bodyW, bodyY, pi, o.leg, o.legDark, o.foot, !!o.socks)
 }
 
@@ -134,8 +129,47 @@ function drawCat(px: PxFn, clr: ClrFn, P: Palette, pi: Pose) {
 function drawFox(px: PxFn, clr: ClrFn, P: Palette, pi: Pose) {
   drawQuad(px, clr, P, pi, { ear: "fox", earColor: P.fur, earTip: P.pat, tail: "bushy", tailTip: P.belly, leg: P.fur, legDark: P.dark, foot: P.belly, socks: true, muzzle: true })
 }
+// A roly-poly panda: white body with a black shoulder saddle, round black ears,
+// black legs, an angled eye patch, and a little bamboo sprig at the mouth. Walks
+// on all fours (shares quadLegs with cat/fox) but reads unmistakably panda.
 function drawPanda(px: PxFn, clr: ClrFn, P: Palette, pi: Pose) {
-  drawQuad(px, clr, P, pi, { ear: "round", earColor: P.pat, tail: "stub", leg: P.pat, legDark: shade(P.pat, 0.85), foot: P.pat, eyePatch: true })
+  const stretch = pi.run || pi.air
+  const bob = pi.run ? [0, -2, -1, 0][pi.frame] : pi.idle ? (pi.frame ? -1 : 0) : [0, -1, 0, -1][pi.frame]
+  const bodyY = 8 + bob
+  const bodyX = stretch ? 5 : 7
+  const bodyW = stretch ? 18 : 14
+
+  // stubby tail
+  px(P.pat, bodyX - 1, bodyY + 2, 2, 2)
+  // white body (rounded corners)
+  px(P.fur, bodyX, bodyY, bodyW, 8)
+  clr(bodyX, bodyY); clr(bodyX + bodyW - 1, bodyY); clr(bodyX, bodyY + 7); clr(bodyX + bodyW - 1, bodyY + 7)
+  px(P.dark, bodyX + 1, bodyY + 7, bodyW - 2, 1) // soft under-shadow
+  // black shoulder saddle over the front third (wraps toward the front legs)
+  const sw = 5
+  px(P.pat, bodyX + bodyW - sw, bodyY, sw, 7)
+  clr(bodyX + bodyW - 1, bodyY)
+
+  // head
+  const headX = stretch ? 21 : 19
+  const headY = bodyY - 5 + (pi.run ? 1 : 0)
+  px(P.fur, headX, headY, 9, 8)
+  clr(headX, headY); clr(headX + 8, headY); clr(headX, headY + 7); clr(headX + 8, headY + 7)
+  // round black ears
+  px(P.pat, headX, headY - 1, 3, 3); clr(headX, headY - 1)
+  px(P.pat, headX + 6, headY - 1, 3, 3); clr(headX + 8, headY - 1)
+  // angled black eye patch + glinting eye
+  px(P.pat, headX + 3, headY + 1, 4, 4); clr(headX + 3, headY + 1)
+  px(P.belly, headX + 5, headY + 2, 1, 1); px(P.ink, headX + 6, headY + 2, 1, 1)
+  // black nose + pink mouth dab
+  px(P.pat, headX + 7, headY + 4, 2, 2); clr(headX + 8, headY + 5)
+  px(P.pink, headX + 6, headY + 6, 1, 1)
+  // bamboo sprig at the mouth
+  px(P.accent, headX + 9, headY + 2, 1, 4)
+  px(P.accent, headX + 8, headY + 1, 2, 1)
+
+  // legs — black; far pair slightly darker for depth
+  quadLegs(px, P, bodyX, bodyW, bodyY, pi, P.pat, shade(P.pat, 0.82), P.pat, false)
 }
 
 // A round bunny that HOPS (arcing body, ears sweeping back mid-leap).
@@ -151,7 +185,6 @@ function drawBunny(px: PxFn, _clr: ClrFn, P: Palette, pi: Pose) {
     px(P.ink, 19, 7, 1, 2)
     px(P.pink, 21, 9, 1, 1)
     px(P.belly, 20, 8, 2, 1)
-    px(P.accent, 13, 11, 9, 2)
     px(P.fur, 12, 17, 6, 2); px(P.belly, 12, 18, 6, 1) // big feet
     return
   }
@@ -169,7 +202,6 @@ function drawBunny(px: PxFn, _clr: ClrFn, P: Palette, pi: Pose) {
   if (ext) { px(P.fur, 5, by + 5, 6, 2); px(P.belly, 5, by + 6, 2, 1) }
   else { px(P.fur, 8, by + 6, 3, 3); px(P.belly, 8, by + 8, 3, 1) }
   px(P.fur, 17, by + 6, 2, 2); px(P.belly, 17, by + 7, 2, 1)
-  px(P.accent, 16, by + 3, 3, 2)
 }
 
 // A squat frog with bulging eyes that LEAPS between steps.
@@ -354,8 +386,7 @@ type Mode = "move" | "stagger" | "drop" | "recover"
 /** Per-frame output of the controller — the active renderer (sprite or model)
  *  turns this into a visual. Position is written straight to the root group. */
 export interface PoseOut {
-  spritePose: CatPose // exact sprite frame (sprite renderer only)
-  animState: AnimState // logical clip state (model renderer only)
+  spritePose: CatPose // exact sprite frame
   facing: number // +1 / -1 travel direction relative to camera-right
   tumbleZ: number // roll of the body during stagger/fall
   moving: boolean
@@ -390,7 +421,7 @@ function useCharacterController(root: RefObject<Group | null>): StepFn {
   const camRight = useRef(new Vector3())
   const sinkY = useRef(0) // how far the character has settled into slime (springy)
   const sinkV = useRef(0)
-  const last = useRef<PoseOut>({ spritePose: "idle0", animState: "idle", facing: 1, tumbleZ: 0, moving: false, falling: false })
+  const last = useRef<PoseOut>({ spritePose: "idle0", facing: 1, tumbleZ: 0, moving: false, falling: false })
 
   return useCallback((dt, camera) => {
     const g = root.current
@@ -493,24 +524,20 @@ function useCharacterController(root: RefObject<Group | null>): StepFn {
       roll.current = MathUtils.damp(roll.current, 0, 8, dt)
     }
 
-    // ---- pose selection (sprite frame + logical anim state) ----
+    // ---- pose selection (sprite frame) ----
     const falling = mode.current !== "move"
     const moving = !falling && tt < 1
     const speed = wpm(st)
     let spritePose: CatPose
-    let animState: AnimState
     if (falling || (moving && jumping.current)) {
       spritePose = "air"
-      animState = mode.current === "recover" ? "land" : moving && jumping.current ? "jump" : "fall"
     } else if (moving) {
       const running = speed >= RUN_WPM
       anim.current += dt * (running ? 13 : 8)
       spritePose = `${running ? "run" : "walk"}${Math.floor(anim.current) % 4}` as CatPose
-      animState = running ? "run" : "walk"
     } else {
       anim.current += dt * 1.6
       spritePose = `idle${Math.floor(anim.current) % 2}` as CatPose
-      animState = "idle"
     }
 
     // ---- facing (relative to camera-right, so left/right reads on the spiral) ----
@@ -538,7 +565,7 @@ function useCharacterController(root: RefObject<Group | null>): StepFn {
     }
 
     charWorldPos.copy(g.position)
-    last.current = { spritePose, animState, facing: facing.current, tumbleZ, moving, falling }
+    last.current = { spritePose, facing: facing.current, tumbleZ, moving, falling }
     return last.current
   }, [root])
 }
@@ -574,65 +601,15 @@ function SpriteRenderer({ look, step, root }: { look: CharacterLook; step: StepF
   )
 }
 
-/** 3D GLB renderer. Drives the mixer from the controller's logical anim state
- *  and yaws the model to face travel direction. Suspends while the GLB loads;
- *  a load/clip failure is caught by ModelFallbackBoundary → SpriteRenderer. */
-function ModelRenderer({ def, step, root }: { def: CharacterDef & { model: ModelSpec }; step: StepFn; root: RefObject<Group | null> }) {
-  const { scene, play } = useCharacterModel(def.model)
-
-  useFrame(({ camera }, dt) => {
-    const g = root.current
-    if (!g) return
-    const pose = step(dt, camera)
-    play(pose.animState)
-    // face travel direction. `facing` is signed relative to camera-right, so a
-    // camera-facing yaw plus a half-turn on flip keeps the model reading L/R on
-    // the spiral. (Tuned against the first real asset in Phase 5.)
-    const toCam = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z)
-    g.rotation.y = toCam + (pose.facing >= 0 ? 0 : Math.PI)
-    g.rotation.z = pose.tumbleZ
-  })
-
-  const m = def.model
-  return <primitive object={scene} scale={m.scale} position={m.offset} rotation={m.rotation} />
-}
-
-/** If a character model throws (bad GLB, missing file, decode error), fall back
- *  to the pixel sprite so the game never shows an empty plane. */
-class ModelFallbackBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
-  state = { failed: false }
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-  componentDidCatch(err: unknown) {
-    if (import.meta.env.DEV) console.warn("[character] model failed to load — using sprite fallback", err)
-  }
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children
-  }
-}
-
-/** The player character: one movement controller, one of two interchangeable
- *  renderers chosen by the equipped character's `kind`. Sprite and model
- *  characters coexist; a model that fails to load degrades to the sprite. */
+/** The player character: one movement controller driving the pixel sprite. */
 export default function Character() {
   const look = useGame((s) => s.character)
-  const def = skinById(look.skin)
   const root = useRef<Group>(null)
   const step = useCharacterController(root)
-  const sprite = <SpriteRenderer look={look} step={step} root={root} />
 
   return (
     <group ref={root}>
-      {isModel(def) ? (
-        <ModelFallbackBoundary fallback={sprite}>
-          <Suspense fallback={sprite}>
-            <ModelRenderer key={def.id} def={def} step={step} root={root} />
-          </Suspense>
-        </ModelFallbackBoundary>
-      ) : (
-        sprite
-      )}
+      <SpriteRenderer look={look} step={step} root={root} />
     </group>
   )
 }

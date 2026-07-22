@@ -20,6 +20,16 @@ class AudioEngine {
   private ambLp: BiquadFilterNode | null = null
   private padGain: GainNode | null = null
   private ambBase = 0.03 // base ambience level for the current weather
+  private mechBus: GainNode | null = null // switch-thock layer volume
+  private matBus: GainNode | null = null // material-squish layer volume
+
+  // settings-driven mix (all default to the pre-settings behaviour)
+  private masterVolume = 0.9
+  private muted = false
+  private reverbScale = 1 // reverb slider / 0.5 default
+  private ambScale = 1 // ambience slider / 0.6 default
+  private stereoWidth = 1
+  private lastFlow = 0
 
   // --- recorded-sample layer (optional; synth is the fallback) ---
   // A decoded CC0 sample per material/keycap tone. When present, it PLAYS
@@ -43,7 +53,7 @@ class AudioEngine {
     this.ctx = ctx
 
     this.master = ctx.createGain()
-    this.master.gain.value = 0.9
+    this.master.gain.value = this.muted ? 0 : this.masterVolume
     this.master.connect(ctx.destination)
 
     this.dry = ctx.createGain()
@@ -57,14 +67,74 @@ class AudioEngine {
     this.reverb.connect(this.wet)
     this.wet.connect(this.master)
 
+    // per-layer buses so the mechanical and material volumes are independent;
+    // each feeds the dry path and the reverb send.
+    this.mechBus = ctx.createGain()
+    this.matBus = ctx.createGain()
+    for (const bus of [this.mechBus, this.matBus]) {
+      bus.connect(this.dry)
+      bus.connect(this.reverb)
+    }
+
     this.noiseBuf = this.makeNoise(0.4)
     this.startAmbience()
   }
 
   setMuted(m: boolean) {
+    this.muted = m
     if (this.master && this.ctx) {
-      this.master.gain.setTargetAtTime(m ? 0 : 0.9, this.ctx.currentTime, 0.05)
+      this.master.gain.setTargetAtTime(m ? 0 : this.masterVolume, this.ctx.currentTime, 0.05)
     }
+  }
+
+  setMasterVolume(v: number) {
+    this.masterVolume = Math.max(0, Math.min(1, v))
+    if (this.master && this.ctx && !this.muted) {
+      this.master.gain.setTargetAtTime(this.masterVolume, this.ctx.currentTime, 0.05)
+    }
+  }
+
+  setMechVolume(v: number) {
+    if (this.mechBus && this.ctx) this.mechBus.gain.setTargetAtTime(Math.max(0, v), this.ctx.currentTime, 0.05)
+  }
+
+  setMaterialVolume(v: number) {
+    if (this.matBus && this.ctx) this.matBus.gain.setTargetAtTime(Math.max(0, v), this.ctx.currentTime, 0.05)
+  }
+
+  setReverbAmount(a: number) {
+    this.reverbScale = Math.max(0, a) / 0.5 // 0.5 slider == prior default
+    this.setFlow(this.lastFlow)
+  }
+
+  setStereoWidth(w: number) {
+    this.stereoWidth = Math.max(0, Math.min(1, w))
+  }
+
+  setAmbienceVolume(v: number) {
+    this.ambScale = Math.max(0, v) / 0.6 // 0.6 slider == prior default
+    if (this.ambienceGain && this.ctx) {
+      this.ambienceGain.gain.setTargetAtTime(this.ambBase * this.ambScale, this.ctx.currentTime, 0.4)
+    }
+  }
+
+  /** Apply the persisted audio settings in one call (idempotent, ctx-safe). */
+  applyAudioSettings(s: {
+    masterVolume: number
+    mechVolume: number
+    materialVolume: number
+    ambienceVolume: number
+    reverb: number
+    stereoWidth: number
+    muted: boolean
+  }) {
+    this.setMasterVolume(s.masterVolume)
+    this.setMechVolume(s.mechVolume)
+    this.setMaterialVolume(s.materialVolume)
+    this.setAmbienceVolume(s.ambienceVolume)
+    this.setReverbAmount(s.reverb)
+    this.setStereoWidth(s.stereoWidth)
+    this.setMuted(s.muted)
   }
 
   /**
@@ -114,7 +184,7 @@ class AudioEngine {
     src.playbackRate.value = Math.min(1.35, Math.max(0.75, ratio))
     const g = ctx.createGain()
     g.gain.value = this.sampleGain[key] ?? 1
-    src.connect(g).connect(this.pan(pan, true))
+    src.connect(g).connect(this.pan(pan, true, this.matBus))
     const offset = this.sampleOffset[key] ?? 0
     const dur = this.sampleDur[key] ?? 0
     if (dur > 0) src.start(ctx.currentTime, offset, dur)
@@ -124,9 +194,10 @@ class AudioEngine {
   /** Flow (0..1) opens up reverb + ambience for a warmer, deeper mix. */
   setFlow(flow: number) {
     if (!this.ctx) return
+    this.lastFlow = flow
     const t = this.ctx.currentTime
-    this.wet.gain.setTargetAtTime(0.06 + flow * 0.3, t, 0.2)
-    if (this.ambienceGain) this.ambienceGain.gain.setTargetAtTime(this.ambBase + flow * 0.04, t, 0.4)
+    this.wet.gain.setTargetAtTime((0.06 + flow * 0.3) * this.reverbScale, t, 0.2)
+    if (this.ambienceGain) this.ambienceGain.gain.setTargetAtTime((this.ambBase + flow * 0.04) * this.ambScale, t, 0.4)
   }
 
   /** Match the ambience bed to the current weather. */
@@ -174,7 +245,7 @@ class AudioEngine {
       return
     }
     const t = ctx.currentTime
-    const out = this.pan(pan, true)
+    const out = this.pan(pan, true, this.mechBus)
 
     if (tone === "mt3") {
       // deep "thock": punchy low-mid resonant body + a quick bright tick, fast decay
@@ -385,7 +456,7 @@ class AudioEngine {
   private playImpact(impact: Impact, freq: number, pan: number) {
     const ctx = this.ctx!
     const t = ctx.currentTime
-    const out = this.pan(pan, true)
+    const out = this.pan(pan, true, this.mechBus)
 
     if (impact === "snap") {
       // a tiny sharp tick — the material "snap" carries the rest
@@ -464,7 +535,7 @@ class AudioEngine {
   private playMaterial(sound: MaterialSound, freq: number, pan: number) {
     const ctx = this.ctx!
     const t = ctx.currentTime
-    const out = this.pan(pan, true)
+    const out = this.pan(pan, true, this.matBus)
 
     if (sound === "foam") {
       // soft filtered-noise crunch, mostly unpitched
@@ -715,16 +786,20 @@ class AudioEngine {
   }
 
   /** Returns an input node routed to a fresh HRTF panner -> dry + reverb. */
-  private pan(x: number, sendReverb: boolean): AudioNode {
+  private pan(x: number, sendReverb: boolean, bus?: GainNode | null): AudioNode {
     const ctx = this.ctx!
     const p = ctx.createPanner()
     p.panningModel = "HRTF"
     p.distanceModel = "linear"
-    p.positionX.value = x * 2
+    p.positionX.value = x * 2 * this.stereoWidth
     p.positionY.value = 0
     p.positionZ.value = -1.2
-    p.connect(this.dry)
-    if (sendReverb) p.connect(this.reverb)
+    if (bus) {
+      p.connect(bus) // bus already routes to dry + reverb
+    } else {
+      p.connect(this.dry)
+      if (sendReverb) p.connect(this.reverb)
+    }
     return p
   }
 
