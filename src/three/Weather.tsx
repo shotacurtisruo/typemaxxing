@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 import { useGame } from "../game/store"
+import { motion } from "../game/quality"
 import type { Particle } from "../game/config"
 
 const SPREAD = 12
@@ -14,19 +15,20 @@ const CFG: Record<Particle, { count: number; color: string; size: number; vy: nu
   petal: { count: 240, color: "#ffbdd8", size: 0.16, vy: -1.3, sway: 1.3, opacity: 0.85 },
 }
 
-function Particles({ type }: { type: Particle }) {
+function Particles({ type, scale }: { type: Particle; scale: number }) {
   const cfg = CFG[type]
+  const count = Math.max(0, Math.round(cfg.count * scale))
   const { positions, phases } = useMemo(() => {
-    const positions = new Float32Array(cfg.count * 3)
-    const phases = new Float32Array(cfg.count)
-    for (let i = 0; i < cfg.count; i++) {
+    const positions = new Float32Array(count * 3)
+    const phases = new Float32Array(count)
+    for (let i = 0; i < count; i++) {
       positions[i * 3] = (Math.random() * 2 - 1) * SPREAD
       positions[i * 3 + 1] = (Math.random() * 2 - 1) * (BAND / 2)
       positions[i * 3 + 2] = (Math.random() * 2 - 1) * SPREAD
       phases[i] = Math.random() * Math.PI * 2
     }
     return { positions, phases }
-  }, [cfg.count])
+  }, [count])
 
   const geom = useMemo(() => {
     const g = new THREE.BufferGeometry()
@@ -43,7 +45,7 @@ function Particles({ type }: { type: Particle }) {
     const arr = geom.attributes.position.array as Float32Array
     const top = camY + BAND / 2
     const bot = camY - BAND / 2
-    for (let i = 0; i < cfg.count; i++) {
+    for (let i = 0; i < count; i++) {
       let y = arr[i * 3 + 1] + cfg.vy * dt
       if (cfg.vy < 0 && y < bot) y = top
       else if (cfg.vy > 0 && y > top) y = bot
@@ -56,6 +58,7 @@ function Particles({ type }: { type: Particle }) {
     if (mat.current) mat.current.opacity = cfg.opacity * fade.current
   })
 
+  if (count === 0) return null
   return (
     <points geometry={geom}>
       <pointsMaterial
@@ -76,7 +79,7 @@ function CloudPuff({ x, y, z, scale, speed, tint }: { x: number; y: number; z: n
   const ref = useRef<THREE.Group>(null)
   useFrame((state, dt) => {
     const g = ref.current
-    if (!g) return
+    if (!g || motion.reduced) return // freeze drifting clouds under reduced motion
     g.position.x += speed * dt
     if (g.position.x > SPREAD + 3) g.position.x = -SPREAD - 3
     const camY = state.camera.position.y
@@ -98,7 +101,7 @@ function CloudPuff({ x, y, z, scale, speed, tint }: { x: number; y: number; z: n
   )
 }
 
-export default function Weather() {
+export default function Weather({ particleScale = 1 }: { particleScale?: number }) {
   const weather = useGame((s) => s.weather)
   const clouds = useMemo(
     () =>
@@ -117,7 +120,7 @@ export default function Weather() {
       {clouds.map((c, i) => (
         <CloudPuff key={i} {...c} tint={weather.tint} />
       ))}
-      <Particles key={weather.particle} type={weather.particle} />
+      <Particles key={`${weather.particle}-${particleScale}`} type={weather.particle} scale={particleScale} />
     </group>
   )
 }

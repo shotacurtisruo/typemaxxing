@@ -14,6 +14,7 @@ import { AuthButtons } from "./auth/Auth"
 import { coinURL } from "./three/Character"
 import { useGame } from "./game/store"
 import { loadState } from "./game/persist"
+import { motion } from "./game/quality"
 import { audio } from "./audio/AudioEngine"
 import { hexLerp } from "./game/config"
 
@@ -56,21 +57,39 @@ export default function App() {
     return () => clearTimeout(t)
   }, [coinNonce])
 
-  // crossfade the sky toward the current weather
+  // crossfade the sky toward the current weather — the loop SLEEPS once it
+  // reaches the target and only wakes when `weather` changes (no idle rAF).
+  const skyCur = useRef<[string, string, string]>([...weather.sky])
   useEffect(() => {
     let raf = 0
-    const cur: [string, string, string] = [...useGame.getState().weather.sky]
-    const tick = () => {
-      const target = useGame.getState().weather.sky
-      for (let i = 0; i < 3; i++) cur[i] = hexLerp(cur[i], target[i], 0.05)
-      if (sceneRef.current) {
-        sceneRef.current.style.backgroundImage = `linear-gradient(180deg, ${cur[0]} 0%, ${cur[1]} 45%, ${cur[2]} 100%)`
+    const target = weather.sky
+    const step = () => {
+      let done = true
+      for (let i = 0; i < 3; i++) {
+        const n = hexLerp(skyCur.current[i], target[i], 0.06)
+        if (n !== skyCur.current[i]) done = false
+        skyCur.current[i] = n
       }
-      raf = requestAnimationFrame(tick)
+      if (sceneRef.current) {
+        sceneRef.current.style.backgroundImage = `linear-gradient(180deg, ${skyCur.current[0]} 0%, ${skyCur.current[1]} 45%, ${skyCur.current[2]} 100%)`
+      }
+      if (!done) raf = requestAnimationFrame(step)
     }
-    raf = requestAnimationFrame(tick)
+    raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [weather])
+
+  // reduced motion = stored setting OR the OS preference (kept implicit, no UI)
+  const reducedMotion = useGame((s) => s.settings.reducedMotion)
+  useEffect(() => {
+    const mql = matchMedia("(prefers-reduced-motion: reduce)")
+    const apply = () => {
+      motion.reduced = reducedMotion || mql.matches
+    }
+    apply()
+    mql.addEventListener?.("change", apply)
+    return () => mql.removeEventListener?.("change", apply)
+  }, [reducedMotion])
 
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams()
   const isGallery = params.has("gallery")

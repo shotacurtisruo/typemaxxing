@@ -117,6 +117,7 @@ body {
 .app {
   position: relative;
   height: 100vh;
+  height: 100dvh; /* excludes mobile browser chrome */
   width: 100vw;
   overflow: hidden;
 }
@@ -857,4 +858,31 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 
 @media (prefers-reduced-motion: reduce) {
   .type-resume, .flow-fill { transition: none !important; }
+}
+
+/* ---------------- responsive + safe-area ---------------- */
+.brand { top: max(18px, env(safe-area-inset-top)); left: max(22px, env(safe-area-inset-left)); }
+.top-right { top: max(16px, env(safe-area-inset-top)); right: max(18px, env(safe-area-inset-right)); flex-wrap: wrap; justify-content: flex-end; max-width: min(92vw, 520px); }
+.panel { bottom: max(20px, env(safe-area-inset-bottom)); }
+
+/* phones / narrow: shrink the panel + passage so nothing overflows or covers the climb */
+@media (max-width: 640px) {
+  .panel { width: calc(100% - 16px); padding: 12px 14px 14px; border-radius: 18px; }
+  .hud { gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+  .stats { gap: 16px; }
+  .stat .num { font-size: 20px; }
+  .flow-wrap { order: 5; flex-basis: 100%; max-width: none; }
+  .cap-toggle { margin-left: auto; }
+  .passage { font-size: 20px; height: calc(1.7em * 3); }
+  .brand { font-size: 12px; letter-spacing: 3px; }
+  .hint p { font-size: 20px; }
+  .cz-panel { padding: 14px 16px 18px; }
+}
+
+/* short / landscape: keep the tower visible, trim vertical passage space */
+@media (max-height: 560px) {
+  .panel { bottom: max(8px, env(safe-area-inset-bottom)); padding: 10px 20px 12px; }
+  .hud { margin-bottom: 8px; }
+  .passage { font-size: 18px; height: calc(1.7em * 2); }
+  .cz-shop, .set-panel { max-height: 94vh; }
 }

@@ -6,6 +6,7 @@ import { skinById } from "../game/skins"
 import { objectFor, slotWorldPos, panForWord } from "../game/config"
 import { audio } from "../audio/AudioEngine"
 import { charWorldPos, shake } from "./sceneBus"
+import { motion } from "../game/quality"
 
 const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10)
 
@@ -504,7 +505,7 @@ function useCharacterController(root: RefObject<Group | null>): StepFn {
         from.current.copy(g.position)
         to.current.copy(goal.current)
         audio.playThud(panForWord(angle))
-        shake(0.55)
+        if (!motion.reduced) shake(0.55)
       }
     } else if (mode.current === "recover") {
       const e = smoother(tt)
