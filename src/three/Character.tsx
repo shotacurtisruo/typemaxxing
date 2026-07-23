@@ -124,68 +124,156 @@ function drawQuad(px: PxFn, clr: ClrFn, P: Palette, pi: Pose, o: QuadOpts) {
   quadLegs(px, P, bodyX, bodyW, bodyY, pi, o.leg, o.legDark, o.foot, !!o.socks)
 }
 
+// taller triangular cat ears with pink inners (vs the shared quad's tiny nubs)
+function catEars(px: PxFn, clr: ClrFn, P: Palette, hx: number, hy: number) {
+  px(P.fur, hx, hy - 2, 3, 3); clr(hx, hy - 2); clr(hx + 2, hy - 2)
+  px(P.fur, hx + 6, hy - 2, 3, 3); clr(hx + 6, hy - 2); clr(hx + 8, hy - 2)
+  px(P.pink, hx + 1, hy - 1, 1, 1); px(P.pink, hx + 7, hy - 1, 1, 1)
+}
+// A tabby cat: triangular ears, muzzle + pink nose, back/tail stripes, and a
+// raised curling tail with a dark tip — reads clearly as a cat at gameplay size.
 function drawCat(px: PxFn, clr: ClrFn, P: Palette, pi: Pose) {
-  drawQuad(px, clr, P, pi, { ear: "cat", earColor: P.fur, tail: "thin", leg: P.fur, legDark: P.dark, foot: P.belly })
+  const stripe = P.pat
+  if (pi.idle) {
+    const flick = pi.frame === 1
+    px(P.fur, 9, 9, 10, 9); clr(9, 9); clr(18, 9)
+    px(P.fur, 11, 6, 8, 4)
+    px(P.dark, 9, 16, 10, 2)
+    px(P.belly, 15, 10, 4, 7)
+    px(stripe, 12, 6, 1, 3); px(stripe, 15, 6, 1, 3)
+    px(P.fur, 15, 1, 9, 7); clr(15, 1); clr(23, 1); clr(15, 7); clr(23, 7)
+    catEars(px, clr, P, 15, 1)
+    px(P.belly, 21, 4, 3, 3)
+    px(P.ink, 20, 3, 1, 2); px(P.ink, 23, 3, 1, 2)
+    px(P.pink, 22, 4, 1, 1)
+    px(P.dark, 21, 5, 3, 1)
+    px(P.fur, 16, 12, 2, 5)
+    px(P.belly, 16, 17, 2, 2)
+    px(P.fur, 6, 16, 3, 2)
+    px(P.fur, 4, 12 - (flick ? 1 : 0), 2, 5)
+    px(stripe, 4, 13, 2, 1)
+    px(P.dark, 4, 11 - (flick ? 1 : 0), 2, 2)
+    return
+  }
+  const stretch = pi.run || pi.air
+  const bob = pi.run ? [0, -2, -1, 0][pi.frame] : [0, -1, 0, -1][pi.frame]
+  const bodyY = 8 + bob
+  const bodyX = stretch ? 5 : 7
+  const bodyW = stretch ? 19 : 15
+  if (stretch) { px(P.fur, bodyX - 4, bodyY - 2, 5, 2); px(P.fur, bodyX - 5, bodyY - 4, 2, 3); px(P.dark, bodyX - 5, bodyY - 5, 2, 2) }
+  else { px(P.fur, 3, bodyY - 1, 2, 4); px(P.fur, 2, bodyY - 4, 2, 3); px(P.dark, 2, bodyY - 5, 2, 2) }
+  px(P.fur, bodyX, bodyY, bodyW, 7); clr(bodyX, bodyY); clr(bodyX + bodyW - 1, bodyY)
+  px(P.belly, bodyX + 3, bodyY + 5, bodyW - 5, 2)
+  px(stripe, bodyX + 4, bodyY, 1, 3); px(stripe, bodyX + 7, bodyY, 1, 3); px(stripe, bodyX + 10, bodyY, 1, 3)
+  const headX = stretch ? 22 : 20
+  const headY = bodyY - 5 + (pi.run ? 1 : 0)
+  px(P.fur, headX, headY, 9, 8); clr(headX, headY); clr(headX + 8, headY); clr(headX, headY + 7); clr(headX + 8, headY + 7)
+  catEars(px, clr, P, headX, headY)
+  px(P.belly, headX + 4, headY + 4, 4, 3)
+  px(P.ink, headX + 6, headY + 3, 1, 2)
+  px(P.pink, headX + 7, headY + 5, 1, 1)
+  px(P.dark, headX + 6, headY + 6, 2, 1)
+  quadLegs(px, P, bodyX, bodyW, bodyY, pi, P.fur, P.dark, P.belly, false)
 }
+// pointed fox ears with dark tips
+function foxEars(px: PxFn, P: Palette, hx: number, hy: number) {
+  px(P.fur, hx, hy - 3, 2, 4); px(P.pat, hx, hy - 3, 2, 1)
+  px(P.fur, hx + 7, hy - 3, 2, 4); px(P.pat, hx + 7, hy - 3, 2, 1)
+  px(P.pink, hx + 1, hy - 1, 1, 1); px(P.pink, hx + 8, hy - 1, 1, 1)
+}
+// A red fox: long pointed snout with a black nose, black-tipped ears, a bold
+// white-tipped bushy tail, black socks and a white chest — unmistakably vulpine.
 function drawFox(px: PxFn, clr: ClrFn, P: Palette, pi: Pose) {
-  drawQuad(px, clr, P, pi, { ear: "fox", earColor: P.fur, earTip: P.pat, tail: "bushy", tailTip: P.belly, leg: P.fur, legDark: P.dark, foot: P.belly, socks: true, muzzle: true })
+  const white = P.belly
+  if (pi.idle) {
+    px(P.fur, 9, 9, 10, 9); clr(9, 9); clr(18, 9)
+    px(P.fur, 11, 6, 8, 4)
+    px(P.dark, 9, 16, 10, 2)
+    px(white, 14, 11, 4, 6)
+    px(P.fur, 15, 1, 9, 7); clr(15, 1); clr(23, 1); clr(15, 7); clr(23, 7)
+    foxEars(px, P, 15, 1)
+    px(P.fur, 24, 4, 3, 3); px(white, 24, 6, 3, 1)
+    px(P.ink, 26, 5, 1, 1)
+    px(P.ink, 20, 3, 1, 2); px(P.ink, 23, 3, 1, 2)
+    px(P.fur, 16, 12, 2, 5); px(P.pat, 16, 17, 2, 2)
+    px(P.fur, 4, 10, 5, 8); clr(4, 10); clr(8, 10)
+    px(white, 4, 9, 4, 2)
+    return
+  }
+  const stretch = pi.run || pi.air
+  const bob = pi.run ? [0, -2, -1, 0][pi.frame] : [0, -1, 0, -1][pi.frame]
+  const bodyY = 8 + bob
+  const bodyX = stretch ? 5 : 7
+  const bodyW = stretch ? 19 : 15
+  if (stretch) { px(P.fur, bodyX - 7, bodyY - 2, 7, 6); clr(bodyX - 7, bodyY - 2); px(white, bodyX - 8, bodyY - 1, 2, 4) }
+  else { px(P.fur, 0, bodyY - 3, 5, 8); clr(0, bodyY - 3); clr(4, bodyY - 3); px(white, 0, bodyY - 4, 3, 3) }
+  px(P.fur, bodyX, bodyY, bodyW, 7); clr(bodyX, bodyY); clr(bodyX + bodyW - 1, bodyY)
+  px(white, bodyX + 3, bodyY + 5, bodyW - 5, 2)
+  const headX = stretch ? 22 : 20
+  const headY = bodyY - 5 + (pi.run ? 1 : 0)
+  px(P.fur, headX, headY, 9, 8); clr(headX, headY); clr(headX + 8, headY); clr(headX, headY + 7); clr(headX + 8, headY + 7)
+  foxEars(px, P, headX, headY)
+  px(P.fur, headX + 8, headY + 3, 3, 3); px(white, headX + 8, headY + 5, 3, 1)
+  px(P.ink, headX + 10, headY + 4, 1, 1)
+  px(P.ink, headX + 6, headY + 3, 1, 2)
+  quadLegs(px, P, bodyX, bodyW, bodyY, pi, P.fur, P.dark, P.belly, true)
 }
-// A roly-poly panda: white body with a black shoulder saddle, round black ears,
-// black legs, an angled eye patch, and a little bamboo sprig at the mouth. Walks
-// on all fours (shares quadLegs with cat/fox) but reads unmistakably panda.
+// A roly-poly panda: chubby white body with a black shoulder band, round black
+// ears, black legs, and a mostly-white face with small delicate marks — a compact
+// teardrop eye patch and a tiny nose. Shares quadLegs with cat/fox.
 function drawPanda(px: PxFn, clr: ClrFn, P: Palette, pi: Pose) {
   const stretch = pi.run || pi.air
   const bob = pi.run ? [0, -2, -1, 0][pi.frame] : pi.idle ? (pi.frame ? -1 : 0) : [0, -1, 0, -1][pi.frame]
   const bodyY = 8 + bob
   const bodyX = stretch ? 5 : 7
-  const bodyW = stretch ? 18 : 14
+  const bodyW = stretch ? 18 : 15
 
   // stubby tail
   px(P.pat, bodyX - 1, bodyY + 2, 2, 2)
-  // white body (rounded corners)
-  px(P.fur, bodyX, bodyY, bodyW, 8)
-  clr(bodyX, bodyY); clr(bodyX + bodyW - 1, bodyY); clr(bodyX, bodyY + 7); clr(bodyX + bodyW - 1, bodyY + 7)
-  px(P.dark, bodyX + 1, bodyY + 7, bodyW - 2, 1) // soft under-shadow
-  // black shoulder saddle over the front third (wraps toward the front legs)
+  // chubby rounded white body
+  px(P.fur, bodyX, bodyY, bodyW, 9)
+  clr(bodyX, bodyY); clr(bodyX + bodyW - 1, bodyY); clr(bodyX, bodyY + 8); clr(bodyX + bodyW - 1, bodyY + 8)
+  clr(bodyX, bodyY + 1); clr(bodyX + bodyW - 1, bodyY + 1)
+  // black shoulder band wrapping toward the front legs
   const sw = 5
-  px(P.pat, bodyX + bodyW - sw, bodyY, sw, 7)
-  clr(bodyX + bodyW - 1, bodyY)
+  px(P.pat, bodyX + bodyW - sw, bodyY + 1, sw, 7)
+  clr(bodyX + bodyW - 1, bodyY + 1)
 
-  // head
+  // head (round)
   const headX = stretch ? 21 : 19
   const headY = bodyY - 5 + (pi.run ? 1 : 0)
   px(P.fur, headX, headY, 9, 8)
   clr(headX, headY); clr(headX + 8, headY); clr(headX, headY + 7); clr(headX + 8, headY + 7)
-  // round black ears
-  px(P.pat, headX, headY - 1, 3, 3); clr(headX, headY - 1)
-  px(P.pat, headX + 6, headY - 1, 3, 3); clr(headX + 8, headY - 1)
-  // angled black eye patch + glinting eye
-  px(P.pat, headX + 3, headY + 1, 4, 4); clr(headX + 3, headY + 1)
-  px(P.belly, headX + 5, headY + 2, 1, 1); px(P.ink, headX + 6, headY + 2, 1, 1)
-  // black nose + pink mouth dab
-  px(P.pat, headX + 7, headY + 4, 2, 2); clr(headX + 8, headY + 5)
-  px(P.pink, headX + 6, headY + 6, 1, 1)
-  // bamboo sprig at the mouth
-  px(P.accent, headX + 9, headY + 2, 1, 4)
-  px(P.accent, headX + 8, headY + 1, 2, 1)
+  // round black ears (3x3, tucked to the sides)
+  px(P.pat, headX, headY - 2, 3, 3); clr(headX, headY - 2); clr(headX + 2, headY - 2)
+  px(P.pat, headX + 6, headY - 2, 3, 3); clr(headX + 6, headY - 2); clr(headX + 8, headY - 2)
+  // panda face: mostly white, small delicate marks
+  px(P.pat, headX + 3, headY + 2, 2, 2)
+  px(P.pat, headX + 4, headY + 4, 1, 1) // teardrop tail
+  px(P.belly, headX + 3, headY + 2, 1, 1) // white glint
+  px(P.ink, headX + 4, headY + 2, 1, 1) // tiny pupil
+  px(P.pat, headX + 7, headY + 3, 1, 1) // small nose
+  px(P.dark, headX + 6, headY + 5, 2, 1) // faint mouth
 
   // legs — black; far pair slightly darker for depth
   quadLegs(px, P, bodyX, bodyW, bodyY, pi, P.pat, shade(P.pat, 0.82), P.pat, false)
 }
 
-// A round bunny that HOPS (arcing body, ears sweeping back mid-leap).
+// A round bunny that HOPS (arcing body, ears sweeping back mid-leap). Pink nose
+// + whiskers, a fluffy round cotton tail, and two clear upright ears when idle.
 function drawBunny(px: PxFn, _clr: ClrFn, P: Palette, pi: Pose) {
   const clr = _clr
   if (pi.idle) {
     px(P.fur, 10, 10, 10, 9); clr(10, 10); clr(19, 10); clr(10, 18); clr(19, 18)
     px(P.belly, 12, 13, 6, 4)
-    px(P.belly, 8, 14, 3, 3) // cotton tail
+    px(P.belly, 7, 13, 4, 4); clr(7, 13); clr(10, 13); clr(7, 16); clr(10, 16) // round cotton tail
     px(P.fur, 13, 4, 9, 8); clr(13, 4); clr(21, 4); clr(13, 11); clr(21, 11)
     px(P.fur, 15, -3, 2, 7); px(P.fur, 18, -3, 2, 7) // tall ears
     px(P.pink, 15, -1, 1, 4); px(P.pink, 18, -1, 1, 4)
     px(P.ink, 19, 7, 1, 2)
-    px(P.pink, 21, 9, 1, 1)
-    px(P.belly, 20, 8, 2, 1)
+    px(P.pink, 21, 9, 1, 1) // nose
+    px(P.dark, 22, 9, 2, 1) // whisker
+    px(P.belly, 20, 8, 2, 1) // cheek
     px(P.fur, 12, 17, 6, 2); px(P.belly, 12, 18, 6, 1) // big feet
     return
   }
@@ -193,47 +281,58 @@ function drawBunny(px: PxFn, _clr: ClrFn, P: Palette, pi: Pose) {
   const by = 9 + arc
   px(P.fur, 7, by, 11, 8); clr(7, by); clr(17, by); clr(7, by + 7); clr(17, by + 7)
   px(P.belly, 9, by + 4, 7, 3)
-  px(P.belly, 5, by + 2, 3, 3) // tail
+  px(P.belly, 4, by + 2, 4, 4); clr(4, by + 2); clr(7, by + 2); clr(4, by + 5); clr(7, by + 5) // round tail
   px(P.fur, 16, by - 2, 8, 7); clr(16, by - 2); clr(23, by - 2); clr(16, by + 4); clr(23, by + 4)
   const back = pi.air || pi.frame === 1 || pi.frame === 2
-  if (back) { px(P.fur, 13, by - 4, 5, 2); px(P.fur, 11, by - 5, 4, 2); px(P.pink, 13, by - 4, 3, 1) }
-  else { px(P.fur, 18, by - 7, 2, 6); px(P.fur, 21, by - 7, 2, 6); px(P.pink, 18, by - 5, 1, 3) }
+  if (back) { px(P.fur, 12, by - 4, 6, 2); px(P.fur, 10, by - 5, 5, 2); px(P.pink, 12, by - 4, 4, 1) }
+  else { px(P.fur, 18, by - 7, 2, 6); px(P.fur, 21, by - 7, 2, 6); px(P.pink, 18, by - 5, 1, 3); px(P.pink, 21, by - 5, 1, 3) }
   px(P.ink, 22, by + 1, 1, 2); px(P.pink, 24, by + 3, 1, 1)
   const ext = pi.air || pi.frame === 1 || pi.frame === 2
   if (ext) { px(P.fur, 5, by + 5, 6, 2); px(P.belly, 5, by + 6, 2, 1) }
   else { px(P.fur, 8, by + 6, 3, 3); px(P.belly, 8, by + 8, 3, 1) }
-  px(P.fur, 17, by + 6, 2, 2); px(P.belly, 17, by + 7, 2, 1)
+  px(P.fur, 17, by + 6, 3, 2); px(P.belly, 17, by + 7, 3, 1)
 }
 
-// A squat frog with bulging eyes that LEAPS between steps.
+// A rounded sitting frog with bulging eyes doming off the top of its head, a
+// folded hind-leg haunch, splayed front toes and a webbed hind foot — and a
+// proper two-eyed, leg-kicking leap between steps.
 function drawFrog(px: PxFn, _clr: ClrFn, P: Palette, pi: Pose) {
   const clr = _clr
   const lip = shade(P.fur, 0.55)
+  const dk = shade(P.fur, 0.8)
   if (pi.idle) {
-    px(P.fur, 8, 12, 15, 6); clr(8, 12); clr(22, 12); clr(8, 17); clr(22, 17)
-    px(P.belly, 11, 15, 9, 3)
-    px(P.accent, 15, 14, 5, 1) // throat
-    px(P.fur, 15, 8, 3, 3); clr(15, 8) // eye bulges
-    px(P.fur, 19, 8, 3, 3); clr(21, 8)
-    px(P.belly, 16, 9, 2, 2); px(P.ink, 17, 9, 1, 1)
-    px(P.belly, 20, 9, 2, 2); px(P.ink, 21, 9, 1, 1)
-    px(lip, 11, 14, 12, 1) // wide mouth
-    px(P.pat, 10, 13, 2, 2); px(P.pat, 15, 13, 2, 2) // spots
-    px(P.fur, 8, 16, 3, 3); px(P.fur, 20, 16, 3, 3) // haunches
-    px(shade(P.fur, 0.8), 9, 18, 3, 1); px(shade(P.fur, 0.8), 20, 18, 3, 1)
+    const blink = pi.frame === 1
+    px(P.fur, 6, 13, 5, 4); clr(6, 13); clr(10, 13) // folded hind-leg haunch (knee up)
+    px(dk, 6, 16, 5, 1)
+    px(P.fur, 9, 13, 13, 5); clr(9, 13); clr(21, 13); clr(9, 17); clr(21, 17) // rounded body
+    px(P.fur, 11, 11, 9, 3); clr(11, 11); clr(19, 11) // rounded back/shoulders
+    px(P.belly, 11, 15, 9, 3) // cream belly
+    px(P.accent, 13, 15, 5, 1) // throat
+    px(P.pat, 12, 12, 2, 1); px(P.pat, 16, 11, 2, 1) // back spots
+    px(P.fur, 15, 8, 3, 3); clr(15, 8); clr(17, 8) // bulging eyes on top
+    px(P.fur, 19, 8, 3, 3); clr(19, 8); clr(21, 8)
+    if (blink) { px(lip, 16, 10, 2, 1); px(lip, 20, 10, 2, 1) }
+    else { px(P.belly, 16, 9, 2, 1); px(P.ink, 16, 9, 1, 1); px(P.belly, 20, 9, 2, 1); px(P.ink, 20, 9, 1, 1) }
+    px(lip, 12, 14, 11, 1); px(lip, 22, 13, 1, 1) // smiling mouth
+    px(P.ink, 21, 12, 1, 1) // nostril
+    px(P.fur, 20, 16, 3, 2); px(dk, 20, 18, 4, 1) // front hand + splayed toes
+    px(P.fur, 8, 17, 3, 2); px(dk, 7, 18, 5, 1) // webbed hind foot
     return
   }
   const arc = pi.run ? [-1, -6, -9, -3][pi.frame] : pi.air ? -7 : [0, -4, -6, -2][pi.frame]
   const by = 11 + arc
   px(P.fur, 7, by, 16, 6); clr(7, by); clr(22, by); clr(7, by + 5); clr(22, by + 5)
-  px(P.belly, 10, by + 3, 9, 2)
-  px(P.fur, 17, by - 2, 3, 3); clr(17, by - 2)
-  px(P.belly, 18, by - 1, 2, 2); px(P.ink, 19, by - 1, 1, 1)
+  px(P.belly, 10, by + 3, 10, 2)
+  px(P.pat, 11, by + 1, 2, 1); px(P.pat, 15, by, 2, 1) // back spots
+  px(P.fur, 16, by - 2, 3, 2); clr(16, by - 2) // two eye bulges on top
+  px(P.fur, 19, by - 2, 3, 3); clr(21, by - 2)
+  px(P.belly, 17, by - 1, 1, 1); px(P.ink, 18, by - 1, 1, 1)
+  px(P.belly, 20, by - 1, 1, 1); px(P.ink, 21, by - 1, 1, 1)
   px(lip, 11, by + 2, 12, 1)
   const ext = pi.air || pi.frame === 1 || pi.frame === 2
-  if (ext) { px(P.fur, 3, by + 3, 7, 2); px(shade(P.fur, 0.8), 3, by + 4, 2, 1) }
-  else { px(P.fur, 7, by + 5, 3, 2); px(shade(P.fur, 0.8), 7, by + 6, 3, 1) }
-  px(P.fur, 19, by + 4, 2, 3); px(shade(P.fur, 0.8), 19, by + 6, 2, 1)
+  if (ext) { px(P.fur, 3, by + 1, 5, 2); px(P.fur, 1, by + 3, 3, 2); px(dk, 1, by + 4, 3, 1) } // hind leg kicking back
+  else { px(P.fur, 5, by + 3, 4, 3); px(dk, 5, by + 5, 3, 1) } // folded haunch
+  px(P.fur, 18, by + 4, 3, 2); px(dk, 20, by + 5, 2, 1) // front leg reaching
 }
 
 // An upright penguin that WADDLES (rocking body, shuffling feet).

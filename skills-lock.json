@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "skills": {
+    "accessibility": {
+      "source": "addyosmani/web-quality-skills",
+      "sourceType": "github",
+      "skillPath": "skills/accessibility/SKILL.md",
+      "computedHash": "10e83284d3395ab5ec2f2db602b663480a37a4ff404d16510eefe86b034fcc1a"
+    },
+    "firebase-auth-basics": {
+      "source": "firebase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/firebase-auth-basics/SKILL.md",
+      "computedHash": "f4850f578bacdda96cacaa57b5e1121ec047e99bf7d389033042b1975af91040"
+    },
+    "firebase-basics": {
+      "source": "firebase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/firebase-basics/SKILL.md",
+      "computedHash": "8210ee53231b8299df100561d4ef776d39a293fd54403008bd738c65a856d54f"
+    },
+    "firebase-security-rules-auditor": {
+      "source": "firebase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/firebase-security-rules-auditor/SKILL.md",
+      "computedHash": "7d05c33d2e00c1d26cbd99ae174272fdd962e63b67c801e2fc050cc63e681723"
+    },
+    "game-feel": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/disciplines/game-feel/SKILL.md",
+      "computedHash": "48f7e9eb81c8fb177e1c26f54fc0e8c3f1b818d2905332c7ee53b16aa7b7a975"
+    },
+    "pixel-art-sprites": {
+      "source": "omer-metin/skills-for-antigravity",
+      "sourceType": "github",
+      "skillPath": "skills/pixel-art-sprites/SKILL.md",
+      "computedHash": "6d7f3d45af2fa94e0fe9abe08575e859aa0f24297305ee8b89ac64a7534c9825"
+    },
+    "threejs-game-ui-designer": {
+      "source": "majidmanzarpour/threejs-game-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-game-ui-designer/SKILL.md",
+      "computedHash": "272a6b4cf8d684c7eb3b79a655681a26ad431de48070e6ab6d0ea303f8387b29"
+    }
+  }
+}

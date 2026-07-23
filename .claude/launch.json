@@ -5,7 +5,14 @@
       "name": "thock",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "sprite-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5199", "--strictPort"],
+      "port": 5199
     }
   ]
 }

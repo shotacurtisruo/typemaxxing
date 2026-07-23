@@ -28,3 +28,7 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# agent-installed skills (machine-local)
+.claude/skills/
+.agents/
